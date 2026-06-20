@@ -374,11 +374,14 @@ else:
     # ── Step 5: Heal ──────────────────────────────────────────────────────────
     print(f"HealerAgent executing {action}...")
     healer_prompt = (
-        f"Decision: {action}\\n"
-        f"Health: {health}\\n"
-        "PATCH    -> call patch_app with reason\\n"
-        "ROLLBACK -> call rollback_app with reason\\n"
-        "ESCALATE -> call escalate with reason"
+        f"Decision: {action}\n"
+        f"Health: {health}\n\n"
+        f"You MUST call ONLY ONE tool based on the decision.\n"
+        f"The decision is: {action}\n\n"
+        f"If decision is PATCH    → call patch_app only\n"
+        f"If decision is ROLLBACK → call rollback_app only\n"
+        f"If decision is ESCALATE → call escalate only\n\n"
+        f"Call ONLY the tool that matches: {action}"
     )
     healer_agent.run(healer_prompt)
 
