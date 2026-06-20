@@ -26,11 +26,12 @@ jobs:
       - name: Run baseline tests
         id: run_tests
         run: |
-          pytest test_baseline.py -v --tb=short > test_output.txt 2>&1
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          pytest test_baseline.py -v --tb=short 2>&1 | tee test_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Show test output
+        if: always()
         run: cat test_output.txt
 
       - name: Trigger Digital Immune System
