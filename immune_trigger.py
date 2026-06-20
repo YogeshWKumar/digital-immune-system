@@ -82,14 +82,20 @@ def check_health() -> dict:
         "healthy": r1.status_code == 200 and r1.json().get("total") == 20.0,
         "response": r1.json()
     }
-    r2 = client.post("/order", json={
-        "product_id": 2, "quantity": 4, "coupon": "SAVE50"
-    })
-    results["save50_coupon"] = {
+
+    r2 = client.post("/order", json={"product_id": 1, "quantity": 2, "coupon": "SAVE10"})
+    results["save10_coupon"] = {
         "status_code": r2.status_code,
-        "healthy": r2.status_code == 200 and r2.json().get("total") == 8.0,
-        "response": r2.json(),
-        "expected_total": 8.0
+        "healthy": r2.status_code == 200 and r2.json().get("total") == 18.0,
+        "response": r2.json()
+    }
+
+    r3 = client.post("/order", json={"product_id": 2, "quantity": 4, "coupon": "SAVE50"})
+    results["save50_coupon"] = {
+        "status_code": r3.status_code,
+        "healthy": r3.status_code == 200 and r3.json().get("total") == 4.0,
+        "response": r3.json(),
+        "expected_total": 4.0
     }
     return results
 
@@ -251,6 +257,10 @@ else:
         "Include all imports. Call save_test_to_file when done."
     )
     test_code = testgen_agent.run(prompt)
+
+    # Read actual test code from file — don't use testgen_agent.run() return value
+    with open("/home/user/test_generated.py", "r") as f:
+    test_code = f.read()
 
     print("\\nTestRunnerAgent running tests...")
     test_result = testrunner_agent.run(f"Run these tests:\\n{test_code}")
