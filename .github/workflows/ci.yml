@@ -1,0 +1,53 @@
+# .github/workflows/ci.yml
+name: CI + Digital Immune System
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install fastapi httpx pytest httpx2
+
+      - name: Run baseline tests
+        id: run_tests
+        run: |
+          pytest test_baseline.py -v --tb=short > test_output.txt 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Show test output
+        run: cat test_output.txt
+
+      - name: Trigger Digital Immune System
+        if: steps.run_tests.outputs.exit_code != '0'
+        env:
+          IMMUNE_SYSTEM_URL: ${{ secrets.IMMUNE_SYSTEM_URL }}
+        run: |
+          TEST_OUTPUT=$(cat test_output.txt)
+          curl -X POST "$IMMUNE_SYSTEM_URL/analyze" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"repo\": \"${{ github.repository }}\",
+              \"commit_sha\": \"${{ github.sha }}\",
+              \"branch\": \"${{ github.ref_name }}\",
+              \"failure_log\": $(echo "$TEST_OUTPUT" | python3 -c \"import json,sys; print(json.dumps(sys.stdin.read()))\")
+            }"
+
+      - name: Fail the build if tests failed
+        if: steps.run_tests.outputs.exit_code != '0'
+        run: exit 1
