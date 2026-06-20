@@ -378,9 +378,9 @@ else:
         f"Health: {health}\n\n"
         f"You MUST call ONLY ONE tool based on the decision.\n"
         f"The decision is: {action}\n\n"
-        f"If decision is PATCH    → call patch_app only\n"
-        f"If decision is ROLLBACK → call rollback_app only\n"
-        f"If decision is ESCALATE → call escalate only\n\n"
+        f"If decision is PATCH    - call patch_app only\n"
+        f"If decision is ROLLBACK - call rollback_app only\n"
+        f"If decision is ESCALATE - call escalate only\n\n"
         f"Call ONLY the tool that matches: {action}"
     )
     healer_agent.run(healer_prompt)
