@@ -71,7 +71,7 @@ model = OpenAIServerModel(
 
 @tool
 def check_health() -> dict:
-    'Runs smoke tests against the order API.'
+    'Runs smoke tests against the order API. Returns health report dict.'
     results = {}
     r1 = client.post("/order", json={"product_id": 1, "quantity": 2})
     results["basic_order"] = {
@@ -93,7 +93,7 @@ def check_health() -> dict:
 
 @tool
 def save_test_to_file(content: str) -> str:
-    'Saves generated pytest code. Returns code for runner.'
+    'Saves generated pytest code to file. Args: content: complete pytest source code as a string.'
     with open("/home/user/test_generated.py", "w") as f:
         f.write(content + "\n")
     if "def test_" not in content:
@@ -103,7 +103,7 @@ def save_test_to_file(content: str) -> str:
 
 @tool
 def run_tests(test_code: str) -> dict:
-    'Runs pytest on generated tests inside sandbox.'
+    'Runs pytest on generated tests inside sandbox. Args: test_code: complete pytest source code as a string.'
     with open("/home/user/test_generated.py", "w") as f:
         f.write(test_code + "\n")
     result = subprocess.run(
@@ -121,7 +121,7 @@ def run_tests(test_code: str) -> dict:
 
 @tool
 def patch_app(reason: str) -> str:
-    'Patches buggy calculation in app.py.'
+    'Patches buggy calculation in app.py. Args: reason: description of the fix being applied.'
     with open("/home/user/app.py", "r") as f:
         code = f.read()
     code = code.replace(
@@ -137,7 +137,7 @@ def patch_app(reason: str) -> str:
 
 @tool
 def rollback_app(reason: str) -> str:
-    'Disables breaking feature in app.py.'
+    'Disables breaking feature in app.py. Args: reason: description of why rollback is needed.'
     with open("/home/user/app.py", "r") as f:
         code = f.read()
     code = code.replace(
@@ -153,7 +153,7 @@ def rollback_app(reason: str) -> str:
 
 @tool
 def escalate(reason: str) -> str:
-    'Escalates to on-call engineer.'
+    'Escalates to on-call engineer. Args: reason: full description of the unresolved failure.'
     print(f"ESCALATED: {reason}")
     with open("/home/user/fixed_app.py", "w") as f:
         f.write("ESCALATE")
