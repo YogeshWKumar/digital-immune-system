@@ -183,29 +183,102 @@ def patch_app(reason: str) -> str:
 @tool
 def rollback_app(reason: str) -> str:
     """
-    Rolls back the breaking change by disabling DISCOUNT_ENGINE_ENABLED.
+    Rolls back app.py to the last commit where CI passed by checking GitHub.
+    Uses GitHub Checks API to find the last verified stable commit.
 
     Args:
         reason: Description of why the rollback is being performed.
     """
-    with open("/home/user/app.py", "r") as f:
-        code = f.read()
+    import urllib.request
+    import urllib.error
+    import json as _json
+    import base64 as _base64
 
-    fixed = code.replace(
-        "DISCOUNT_ENGINE_ENABLED = True",
-        "DISCOUNT_ENGINE_ENABLED = False"
-    )
+    gh_token = os.environ.get("GH_TOKEN", "")
+    repo     = os.environ.get("REPO", "")
 
-    if fixed == code:
-        return "Feature flag already False, no change needed"
+    if not gh_token or not repo:
+        return "Missing GH_TOKEN or REPO environment variables"
 
+    headers = {
+        "Authorization": f"token {gh_token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "digital-immune-system"
+    }
+
+    # Step 1: Get recent commits
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/commits?per_page=20",
+            headers=headers
+        )
+        with urllib.request.urlopen(req) as r:
+            commits = _json.loads(r.read())
+    except Exception as e:
+        return f"Failed to fetch commits: {e}"
+
+    # Step 2: Find last commit where CI passed
+    stable_sha = None
+    stable_message = None
+
+    for commit in commits:
+        sha = commit["sha"]
+        message = commit["commit"]["message"]
+
+        try:
+            req2 = urllib.request.Request(
+                f"https://api.github.com/repos/{repo}/commits/{sha}/check-runs",
+                headers=headers
+            )
+            with urllib.request.urlopen(req2) as r:
+                checks = _json.loads(r.read())
+
+            runs = checks.get("check_runs", [])
+
+            if not runs:
+                continue
+
+            # All check runs must be completed and successful
+            all_passed = all(
+                run["status"] == "completed" and run["conclusion"] == "success"
+                for run in runs
+            )
+
+            if all_passed:
+                stable_sha = sha
+                stable_message = message
+                break
+
+        except Exception:
+            continue
+
+    if not stable_sha:
+        return "Could not find any stable commit in recent history"
+
+    # Step 3: Fetch app.py from that stable commit
+    try:
+        req3 = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/contents/app.py?ref={stable_sha}",
+            headers=headers
+        )
+        with urllib.request.urlopen(req3) as r:
+            file_data = _json.loads(r.read())
+        stable_code = _base64.b64decode(file_data["content"]).decode("utf-8")
+    except Exception as e:
+        return f"Failed to fetch app.py from commit {stable_sha[:7]}: {e}"
+
+    # Step 4: Write to sandbox and fixed_app.py
     with open("/home/user/app.py", "w") as f:
-        f.write(fixed)
+        f.write(stable_code)
     with open("/home/user/fixed_app.py", "w") as f:
-        f.write(fixed)
+        f.write(stable_code)
 
     reload_app()
-    return f"Rolled back: {reason}"
+
+    return (
+        f"Rolled back to last stable commit {stable_sha[:7]} "
+        f"({stable_message[:50]}): {reason}"
+    )
 
 
 @tool
@@ -347,7 +420,9 @@ with Sandbox.create() as sandbox:
     result = sandbox.commands.run(
         "cd /home/user && "
         f"OPENAI_API_KEY='{OPENAI_KEY}' "
-        f"FAILURE_COUNT='0' "
+        f"GH_TOKEN='{GH_TOKEN}' "
+        f"REPO='{REPO}' "
+        "FAILURE_COUNT='0' "
         "python immune_system.py",
         timeout=300
     )
