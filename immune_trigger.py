@@ -250,8 +250,12 @@ else:
 print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
+E2B_API_KEY = os.environ["E2B_API_KEY"]
+
 print("Spinning up e2b sandbox...")
-with Sandbox() as sandbox:
+sandbox = Sandbox(api_key=E2B_API_KEY)
+
+try:
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart",
         timeout=120
@@ -306,3 +310,6 @@ with Sandbox() as sandbox:
             f"Commit: {COMMIT_SHA[:7]}\n"
             f"Could not auto-heal. On-call required."
         )
+
+finally:
+    sandbox.kill()
