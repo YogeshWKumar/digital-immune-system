@@ -250,13 +250,8 @@ else:
 print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
-# Set E2B_API_KEY in environment so Sandbox() picks it up automatically
-os.environ["E2B_API_KEY"] = os.environ["E2B_API_KEY"]  # already set from ci.yml
-
 print("Spinning up e2b sandbox...")
-sandbox = Sandbox()
-
-try:
+with Sandbox.create() as sandbox:
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart",
         timeout=120
@@ -311,6 +306,3 @@ try:
             f"Commit: {COMMIT_SHA[:7]}\n"
             f"Could not auto-heal. On-call required."
         )
-
-finally:
-    sandbox.kill()
