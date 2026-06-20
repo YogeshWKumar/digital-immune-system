@@ -7,7 +7,7 @@ app = FastAPI()
 
 # ── Feature flag ──────────────────────────────────────────────────────────────
 # Developer toggles this to True when committing the new feature
-DISCOUNT_ENGINE_ENABLED = False   # ← starts False (stable)
+DISCOUNT_ENGINE_ENABLED = True   # ← starts False (stable)
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 products = {
@@ -26,7 +26,7 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
         if coupon == "SAVE10":
             return round(price * quantity * 0.9, 2)
         elif coupon == "SAVE50":
-            return round(price * quantity * 0.5, 2)
+            return round(price / quantity * 0.5, 2)
     return round(price * quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
