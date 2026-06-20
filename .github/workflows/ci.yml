@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI + Digital Immune System
 
 on:
@@ -37,18 +36,16 @@ jobs:
       - name: Trigger Digital Immune System
         if: steps.run_tests.outputs.exit_code != '0'
         env:
-          IMMUNE_SYSTEM_URL: ${{ secrets.IMMUNE_SYSTEM_URL }}
+          E2B_API_KEY:       ${{ secrets.E2B_API_KEY }}
+          OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN:          ${{ secrets.GH_TOKEN }}
+          REPO:              ${{ github.repository }}
+          COMMIT_SHA:        ${{ github.sha }}
+          BRANCH:            ${{ github.ref_name }}
         run: |
-          TEST_OUTPUT=$(cat test_output.txt)
-          curl -X POST "$IMMUNE_SYSTEM_URL/analyze" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"repo\": \"${{ github.repository }}\",
-              \"commit_sha\": \"${{ github.sha }}\",
-              \"branch\": \"${{ github.ref_name }}\",
-              \"failure_log\": $(echo "$TEST_OUTPUT" | python3 -c \"import json,sys; print(json.dumps(sys.stdin.read()))\")
-            }"
+          pip install e2b-code-interpreter requests smolagents openai
+          python immune_trigger.py
 
-      - name: Fail the build if tests failed
+      - name: Fail build if tests failed
         if: steps.run_tests.outputs.exit_code != '0'
         run: exit 1
