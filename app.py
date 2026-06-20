@@ -26,7 +26,6 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
         if coupon == "SAVE10":
             return round(price * quantity * 0.9, 2)
         elif coupon == "SAVE50":
-            # BUG: divides instead of multiplies
             return round(price / quantity * 0.5, 2)
     return round(price * quantity, 2)
 

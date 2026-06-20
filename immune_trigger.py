@@ -164,8 +164,8 @@ def patch_app(reason: str) -> str:
         code = f.read()
 
     fixed = code.replace(
-        "return round(price / quantity * 0.5, 2)   # BUG",
-        "return round(price * quantity * 0.5, 2)   # correct"
+        "return round(price / quantity * 0.5, 2)",
+        "return round(price * quantity * 0.5, 2)"
     )
 
     if fixed == code:
