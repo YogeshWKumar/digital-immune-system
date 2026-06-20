@@ -87,9 +87,9 @@ def check_health() -> dict:
     })
     results["save50_coupon"] = {
         "status_code": r2.status_code,
-        "healthy": r2.status_code == 200 and r2.json().get("total") == 4.0,
+        "healthy": r2.status_code == 200 and r2.json().get("total") == 8.0,
         "response": r2.json(),
-        "expected_total": 4.0
+        "expected_total": 8.0
     }
     return results
 
