@@ -260,7 +260,7 @@ else:
 
     # Read actual test code from file — don't use testgen_agent.run() return value
     with open("/home/user/test_generated.py", "r") as f:
-    test_code = f.read()
+        test_code = f.read()
 
     print("\\nTestRunnerAgent running tests...")
     test_result = testrunner_agent.run(f"Run these tests:\\n{test_code}")
