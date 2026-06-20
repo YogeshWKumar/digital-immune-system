@@ -1,5 +1,7 @@
-# immune_trigger.py
-import os, json, base64, requests
+import os
+import json
+import base64
+import requests
 from e2b_code_interpreter import Sandbox
 
 OPENAI_KEY    = os.environ["OPENAI_API_KEY"]
@@ -8,8 +10,9 @@ REPO          = os.environ["REPO"]
 COMMIT_SHA    = os.environ["COMMIT_SHA"]
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", "")
 
-with open("test_output.txt") as f:
+with open("test_output.txt", encoding="utf-8") as f:
     FAILURE_LOG = f.read()
+
 
 def get_file_from_github(filepath):
     r = requests.get(
@@ -18,6 +21,7 @@ def get_file_from_github(filepath):
         params={"ref": COMMIT_SHA}
     )
     return base64.b64decode(r.json()["content"]).decode("utf-8")
+
 
 def push_fix_to_github(filepath, fixed_code, message):
     r = requests.get(
@@ -34,14 +38,19 @@ def push_fix_to_github(filepath, fixed_code, message):
             "sha": file_sha
         }
     )
-    print(f"✅ Fix pushed: {message}")
+    print(f"Fix pushed: {message}")
+
 
 def notify_slack(message):
     if SLACK_WEBHOOK:
         requests.post(SLACK_WEBHOOK, json={"text": message})
 
+
 IMMUNE_CODE = r"""
-import os, sys, json, subprocess
+import os
+import sys
+import json
+import subprocess
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
 import importlib.util
@@ -59,9 +68,10 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"]
 )
 
+
 @tool
 def check_health() -> dict:
-    """Runs smoke tests against the order API."""
+    'Runs smoke tests against the order API.'
     results = {}
     r1 = client.post("/order", json={"product_id": 1, "quantity": 2})
     results["basic_order"] = {
@@ -80,23 +90,26 @@ def check_health() -> dict:
     }
     return results
 
+
 @tool
 def save_test_to_file(content: str) -> str:
-    """Saves generated pytest code. Returns code for runner."""
+    'Saves generated pytest code. Returns code for runner.'
     with open("/home/user/test_generated.py", "w") as f:
         f.write(content + "\n")
     if "def test_" not in content:
         raise RuntimeError("No test functions found")
     return content
 
+
 @tool
 def run_tests(test_code: str) -> dict:
-    """Runs pytest on generated tests inside sandbox."""
+    'Runs pytest on generated tests inside sandbox.'
     with open("/home/user/test_generated.py", "w") as f:
         f.write(test_code + "\n")
     result = subprocess.run(
         ["pytest", "/home/user/test_generated.py", "-v", "--tb=short"],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True
     )
     return {
         "status": "passed" if result.returncode == 0 else "failed",
@@ -105,9 +118,10 @@ def run_tests(test_code: str) -> dict:
         "stderr": result.stderr
     }
 
+
 @tool
 def patch_app(reason: str) -> str:
-    """Patches buggy calculation in app.py."""
+    'Patches buggy calculation in app.py.'
     with open("/home/user/app.py", "r") as f:
         code = f.read()
     code = code.replace(
@@ -118,11 +132,12 @@ def patch_app(reason: str) -> str:
         f.write(code)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(code)
-    return f"✅ Patched: {reason}"
+    return f"Patched: {reason}"
+
 
 @tool
 def rollback_app(reason: str) -> str:
-    """Disables breaking feature in app.py."""
+    'Disables breaking feature in app.py.'
     with open("/home/user/app.py", "r") as f:
         code = f.read()
     code = code.replace(
@@ -133,15 +148,17 @@ def rollback_app(reason: str) -> str:
         f.write(code)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(code)
-    return f"⏪ Rolled back: {reason}"
+    return f"Rolled back: {reason}"
+
 
 @tool
 def escalate(reason: str) -> str:
-    """Escalates to on-call engineer."""
-    print(f"🚨 ESCALATED: {reason}")
+    'Escalates to on-call engineer.'
+    print(f"ESCALATED: {reason}")
     with open("/home/user/fixed_app.py", "w") as f:
         f.write("ESCALATE")
-    return f"🚨 Escalated: {reason}"
+    return f"Escalated: {reason}"
+
 
 monitor_agent    = ToolCallingAgent(name="MonitorAgent",    model=model, tools=[check_health])
 testgen_agent    = ToolCallingAgent(name="TestGenAgent",    model=model, tools=[save_test_to_file], max_steps=3)
@@ -152,9 +169,9 @@ healer_agent     = ToolCallingAgent(name="HealerAgent",     model=model, tools=[
 failure_log   = os.environ.get("FAILURE_LOG", "")
 failure_count = int(os.environ.get("FAILURE_COUNT", "0"))
 
-print("\n🧬 DIGITAL IMMUNE SYSTEM ACTIVATED\n")
+print("\nDIGITAL IMMUNE SYSTEM ACTIVATED\n")
 
-print("🔍 MonitorAgent scanning...")
+print("MonitorAgent scanning...")
 health = monitor_agent.run("Run health checks on the order API.")
 print(f"Health: {health}\n")
 
@@ -163,46 +180,44 @@ all_healthy = isinstance(health, dict) and all(
 )
 
 if all_healthy:
-    print("✅ All healthy")
+    print("All healthy")
     with open("/home/user/result.json", "w") as f:
         json.dump({"action": "NONE", "recovered": True}, f)
 else:
-    print("⚠️ Regression detected\n")
+    print("Regression detected\n")
 
-    print("🧪 TestGenAgent generating tests...")
-    test_code = testgen_agent.run(f"""
-    Regression detected. Health: {health}
-    Failure log: {failure_log}
+    print("TestGenAgent generating tests...")
+    prompt = (
+        f"Regression detected. Health: {health}\n"
+        f"Failure log: {failure_log}\n\n"
+        "Generate pytest tests using ONLY:\n"
+        "    from fastapi.testclient import TestClient\n"
+        "    from app import app\n"
+        "    client = TestClient(app)\n"
+        '    client.post("/order", json={"product_id": 1, "quantity": 2})\n'
+        '    client.post("/order", json={"product_id": 2, "quantity": 4, "coupon": "SAVE50"})\n\n'
+        "Test basic order returns 200 and total == 20.0\n"
+        "Test SAVE50 returns 200 and total == 4.0\n"
+        "Include all imports. Call save_test_to_file when done."
+    )
+    test_code = testgen_agent.run(prompt)
 
-    Generate pytest tests using ONLY:
-        from fastapi.testclient import TestClient
-        from app import app
-        client = TestClient(app)
-        client.post("/order", json={{"product_id": 1, "quantity": 2}})
-        client.post("/order", json={{"product_id": 2, "quantity": 4, "coupon": "SAVE50"}})
-
-    Test basic order returns 200 and total == 20.0
-    Test SAVE50 returns 200 and total == 4.0
-    Include all imports. Call save_test_to_file when done.
-    """)
-
-    print("\n🏃 TestRunnerAgent running tests...")
+    print("\nTestRunnerAgent running tests...")
     test_result = testrunner_agent.run(f"Run these tests:\n{test_code}")
     print(f"Result: {test_result}\n")
 
-    print("🧠 GuardianAgent deciding...")
-    decision_raw = guardian_agent.run(f"""
-    Regression in order API.
-    Health: {health}
-    Test result: {test_result}
-    Times failed before: {failure_count}
-
-    PATCH    if failure_count == 0 and bug is in logic
-    ROLLBACK if failure_count >= 1
-    ESCALATE if failure_count >= 3
-
-    Return ONLY one word: PATCH, ROLLBACK, or ESCALATE
-    """)
+    print("GuardianAgent deciding...")
+    guardian_prompt = (
+        f"Regression in order API.\n"
+        f"Health: {health}\n"
+        f"Test result: {test_result}\n"
+        f"Times failed before: {failure_count}\n\n"
+        "PATCH    if failure_count == 0 and bug is in logic\n"
+        "ROLLBACK if failure_count >= 1\n"
+        "ESCALATE if failure_count >= 3\n\n"
+        "Return ONLY one word: PATCH, ROLLBACK, or ESCALATE"
+    )
+    decision_raw = guardian_agent.run(guardian_prompt)
 
     action = "ROLLBACK"
     for word in ["ESCALATE", "PATCH", "ROLLBACK"]:
@@ -211,30 +226,31 @@ else:
             break
     print(f"Decision: {action}\n")
 
-    print(f"🛠️  HealerAgent executing {action}...")
-    healer_agent.run(f"""
-    Decision: {action}
-    Health: {health}
-    PATCH    -> call patch_app with reason
-    ROLLBACK -> call rollback_app with reason
-    ESCALATE -> call escalate with reason
-    """)
+    print(f"HealerAgent executing {action}...")
+    healer_prompt = (
+        f"Decision: {action}\n"
+        f"Health: {health}\n"
+        "PATCH    -> call patch_app with reason\n"
+        "ROLLBACK -> call rollback_app with reason\n"
+        "ESCALATE -> call escalate with reason"
+    )
+    healer_agent.run(healer_prompt)
 
-    print("\n🔍 Verifying recovery...")
+    print("\nVerifying recovery...")
     health_after = monitor_agent.run("Run health checks again.")
     recovered = isinstance(health_after, dict) and all(
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
-    print("✅ Recovered" if recovered else "⚠️ Still degraded")
+    print("Recovered" if recovered else "Still degraded")
 
     with open("/home/user/result.json", "w") as f:
         json.dump({"action": action, "recovered": recovered}, f)
 """
 
-print(f"📥 Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
+print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
-print("🚀 Spinning up e2b sandbox...")
+print("Spinning up e2b sandbox...")
 with Sandbox() as sandbox:
     sandbox.commands.run(
         "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart",
@@ -263,7 +279,7 @@ with Sandbox() as sandbox:
     except Exception:
         outcome = {"action": "UNKNOWN", "recovered": False}
 
-    print(f"\n📊 Outcome: {outcome}")
+    print(f"Outcome: {outcome}")
 
     if outcome["action"] in ["PATCH", "ROLLBACK"]:
         try:
@@ -274,19 +290,19 @@ with Sandbox() as sandbox:
                 f"fix: auto-healed [{outcome['action']}] on {COMMIT_SHA[:7]}"
             )
             notify_slack(
-                f"🛡️ *Digital Immune System*\n"
-                f"Repo: `{REPO}`\n"
-                f"Commit: `{COMMIT_SHA[:7]}`\n"
-                f"Action: *{outcome['action']}*\n"
-                f"Recovered: {'✅' if outcome['recovered'] else '⚠️'}"
+                f"Digital Immune System\n"
+                f"Repo: {REPO}\n"
+                f"Commit: {COMMIT_SHA[:7]}\n"
+                f"Action: {outcome['action']}\n"
+                f"Recovered: {'Yes' if outcome['recovered'] else 'No'}"
             )
         except Exception as e:
             print(f"Could not push fix: {e}")
 
     elif outcome["action"] == "ESCALATE":
         notify_slack(
-            f"🚨 *Digital Immune System — ESCALATION*\n"
-            f"Repo: `{REPO}`\n"
-            f"Commit: `{COMMIT_SHA[:7]}`\n"
+            f"Digital Immune System - ESCALATION\n"
+            f"Repo: {REPO}\n"
+            f"Commit: {COMMIT_SHA[:7]}\n"
             f"Could not auto-heal. On-call required."
         )
