@@ -250,10 +250,11 @@ else:
 print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
 app_code = get_file_from_github("app.py")
 
-E2B_API_KEY = os.environ["E2B_API_KEY"]
+# Set E2B_API_KEY in environment so Sandbox() picks it up automatically
+os.environ["E2B_API_KEY"] = os.environ["E2B_API_KEY"]  # already set from ci.yml
 
 print("Spinning up e2b sandbox...")
-sandbox = Sandbox(api_key=E2B_API_KEY)
+sandbox = Sandbox()
 
 try:
     sandbox.commands.run(
