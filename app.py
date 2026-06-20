@@ -27,7 +27,7 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
             return round(price * quantity * 0.9, 2)
         elif coupon == "SAVE50":
             return round(price * quantity * 0.5, 2)
-    return round(price * quantity, 2)
+    return round(price / quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.post("/order")
