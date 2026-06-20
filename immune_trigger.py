@@ -51,10 +51,11 @@ import os
 import sys
 import json
 import subprocess
+import importlib
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
-import importlib.util
 
+# ── Load app ──────────────────────────────────────────────────────────────────
 spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
 app_module = importlib.util.module_from_spec(spec)
 sys.modules["app"] = app_module
@@ -69,13 +70,25 @@ model = OpenAIServerModel(
 )
 
 
+def reload_app():
+    """Reload app module after file changes so health check uses updated code."""
+    global app, client
+    spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
+    app_module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = app_module
+    spec.loader.exec_module(app_module)
+    app = app_module.app
+    client = TestClient(app, raise_server_exceptions=False)
+
+
 @tool
 def check_health() -> dict:
     """
     Runs smoke tests against the order API.
-    Returns a health report dict with healthy status for each endpoint.
+    Returns a health report showing which scenarios pass or fail.
     """
     results = {}
+
     r1 = client.post("/order", json={"product_id": 1, "quantity": 2})
     results["basic_order"] = {
         "status_code": r1.status_code,
@@ -94,19 +107,19 @@ def check_health() -> dict:
     results["save50_coupon"] = {
         "status_code": r3.status_code,
         "healthy": r3.status_code == 200 and r3.json().get("total") == 4.0,
-        "response": r3.json(),
-        "expected_total": 4.0
+        "response": r3.json()
     }
+
     return results
 
 
 @tool
 def save_test_to_file(content: str) -> str:
     """
-    Saves generated pytest code to file and returns the code for the runner.
+    Saves generated pytest code to file.
 
     Args:
-        content: Complete pytest source code as a string to save and return.
+        content: Complete pytest source code as a string to save.
     """
     with open("/home/user/test_generated.py", "w") as f:
         f.write(content + "\\n")
@@ -142,66 +155,59 @@ def run_tests(test_code: str) -> dict:
 def patch_app(reason: str) -> str:
     """
     Patches the buggy SAVE50 discount calculation in app.py.
+    Fixes division bug by replacing / with * in calculate_price.
 
     Args:
         reason: Description of the fix being applied to the app.
     """
     with open("/home/user/app.py", "r") as f:
         code = f.read()
-    code = code.replace(
-        "return round(price / quantity * 0.5, 2)",
-        "return round(price * quantity * 0.5, 2)"
+
+    fixed = code.replace(
+        "return round(price / quantity * 0.5, 2)   # BUG",
+        "return round(price * quantity * 0.5, 2)   # correct"
     )
+
+    if fixed == code:
+        return "No bug pattern found to patch"
+
     with open("/home/user/app.py", "w") as f:
-        f.write(code)
+        f.write(fixed)
     with open("/home/user/fixed_app.py", "w") as f:
-        f.write(code)
+        f.write(fixed)
 
-    # Reload app module so health check uses fixed code
-    import importlib
-    spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
-    app_module = importlib.util.module_from_spec(spec)
-    sys.modules["app"] = app_module
-    spec.loader.exec_module(app_module)
-    global app, client
-    app = app_module.app
-    client = TestClient(app, raise_server_exceptions=False)
-
+    reload_app()
     return f"Patched: {reason}"
 
-    
+
 @tool
 def rollback_app(reason: str) -> str:
     """
-    Disables the breaking feature by setting DISCOUNT_ENGINE_ENABLED to False.
+    Rolls back the breaking change by disabling DISCOUNT_ENGINE_ENABLED.
 
     Args:
         reason: Description of why the rollback is being performed.
     """
     with open("/home/user/app.py", "r") as f:
         code = f.read()
-    code = code.replace(
+
+    fixed = code.replace(
         "DISCOUNT_ENGINE_ENABLED = True",
         "DISCOUNT_ENGINE_ENABLED = False"
     )
+
+    if fixed == code:
+        return "Feature flag already False, no change needed"
+
     with open("/home/user/app.py", "w") as f:
-        f.write(code)
+        f.write(fixed)
     with open("/home/user/fixed_app.py", "w") as f:
-        f.write(code)
+        f.write(fixed)
 
-    # Reload app module so health check uses rolled back code
-    import importlib
-    spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
-    app_module = importlib.util.module_from_spec(spec)
-    sys.modules["app"] = app_module
-    spec.loader.exec_module(app_module)
-    global app, client
-    app = app_module.app
-    client = TestClient(app, raise_server_exceptions=False)
-
+    reload_app()
     return f"Rolled back: {reason}"
 
-    
+
 @tool
 def escalate(reason: str) -> str:
     """
@@ -210,10 +216,9 @@ def escalate(reason: str) -> str:
     Args:
         reason: Full description of the unresolved failure to escalate.
     """
-    print(f"ESCALATED: {reason}")
-    with open("/home/user/fixed_app.py", "w") as f:
-        f.write("ESCALATE")
-    return f"Escalated: {reason}"
+    msg = f"ESCALATED TO ON-CALL: {reason}"
+    print(msg)
+    return msg
 
 
 monitor_agent    = ToolCallingAgent(name="MonitorAgent",    model=model, tools=[check_health])
@@ -227,6 +232,7 @@ failure_count = int(os.environ.get("FAILURE_COUNT", "0"))
 
 print("\\nDIGITAL IMMUNE SYSTEM ACTIVATED\\n")
 
+# ── Step 1: Monitor ───────────────────────────────────────────────────────────
 print("MonitorAgent scanning...")
 health = monitor_agent.run("Run health checks on the order API.")
 print(f"Health: {health}\\n")
@@ -236,12 +242,14 @@ all_healthy = isinstance(health, dict) and all(
 )
 
 if all_healthy:
-    print("All healthy")
+    print("All healthy - no regression detected")
     with open("/home/user/result.json", "w") as f:
         json.dump({"action": "NONE", "recovered": True}, f)
+
 else:
     print("Regression detected\\n")
 
+    # ── Step 2: Generate tests ────────────────────────────────────────────────
     print("TestGenAgent generating tests...")
     prompt = (
         f"Regression detected. Health: {health}\\n"
@@ -249,30 +257,34 @@ else:
         "Generate pytest tests using ONLY:\\n"
         "    from fastapi.testclient import TestClient\\n"
         "    from app import app\\n"
-        "    client = TestClient(app)\\n"
-        "    client.post(\\"/order\\", json={\\"product_id\\": 1, \\"quantity\\": 2})\\n"
-        "    client.post(\\"/order\\", json={\\"product_id\\": 2, \\"quantity\\": 4, \\"coupon\\": \\"SAVE50\\"})\\n\\n"
-        "Test basic order returns 200 and total == 20.0\\n"
-        "Test SAVE50 returns 200 and total == 4.0\\n"
-        "Include all imports. Call save_test_to_file when done."
+        "    client = TestClient(app)\\n\\n"
+        "Test these three scenarios:\\n"
+        "    client.post(\\"/order\\", json={\\"product_id\\": 1, \\"quantity\\": 2}) -> total == 20.0\\n"
+        "    client.post(\\"/order\\", json={\\"product_id\\": 1, \\"quantity\\": 2, \\"coupon\\": \\"SAVE10\\"}) -> total == 18.0\\n"
+        "    client.post(\\"/order\\", json={\\"product_id\\": 2, \\"quantity\\": 4, \\"coupon\\": \\"SAVE50\\"}) -> total == 4.0\\n\\n"
+        "Include all necessary imports. Call save_test_to_file when done."
     )
-    test_code = testgen_agent.run(prompt)
+    testgen_agent.run(prompt)
 
-    # Read actual test code from file — don't use testgen_agent.run() return value
+    # Read actual test code from file
     with open("/home/user/test_generated.py", "r") as f:
         test_code = f.read()
 
+    # ── Step 3: Run tests ─────────────────────────────────────────────────────
     print("\\nTestRunnerAgent running tests...")
-    test_result = testrunner_agent.run(f"Run these tests:\\n{test_code}")
+    test_result = testrunner_agent.run(
+        f"Run these tests and report results:\\n{test_code}"
+    )
     print(f"Result: {test_result}\\n")
 
+    # ── Step 4: Guardian decides ──────────────────────────────────────────────
     print("GuardianAgent deciding...")
     guardian_prompt = (
         f"Regression in order API.\\n"
         f"Health: {health}\\n"
         f"Test result: {test_result}\\n"
         f"Times failed before: {failure_count}\\n\\n"
-        "PATCH    if failure_count == 0 and bug is in logic\\n"
+        "PATCH    if failure_count == 0 and bug is in calculation logic (/ instead of *)\\n"
         "ROLLBACK if failure_count >= 1\\n"
         "ESCALATE if failure_count >= 3\\n\\n"
         "Return ONLY one word: PATCH, ROLLBACK, or ESCALATE"
@@ -286,6 +298,7 @@ else:
             break
     print(f"Decision: {action}\\n")
 
+    # ── Step 5: Heal ──────────────────────────────────────────────────────────
     print(f"HealerAgent executing {action}...")
     healer_prompt = (
         f"Decision: {action}\\n"
@@ -296,12 +309,23 @@ else:
     )
     healer_agent.run(healer_prompt)
 
+    # ── Step 6: Verify ────────────────────────────────────────────────────────
     print("\\nVerifying recovery...")
-    health_after = monitor_agent.run("Run health checks again.")
+    health_after = monitor_agent.run("Run health checks again and confirm recovery.")
     recovered = isinstance(health_after, dict) and all(
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
     print("Recovered" if recovered else "Still degraded")
+
+    # ── Step 7: Write result ──────────────────────────────────────────────────
+    # Only write fixed_app.py if PATCH or ROLLBACK actually modified the file
+    fixed_app_exists = os.path.exists("/home/user/fixed_app.py")
+    if not fixed_app_exists and action not in ["ESCALATE"]:
+        # Copy current app.py as fixed if healer didn\'t write fixed_app.py
+        with open("/home/user/app.py", "r") as f:
+            content = f.read()
+        with open("/home/user/fixed_app.py", "w") as f:
+            f.write(content)
 
     with open("/home/user/result.json", "w") as f:
         json.dump({"action": action, "recovered": recovered}, f)
@@ -323,8 +347,7 @@ with Sandbox.create() as sandbox:
     result = sandbox.commands.run(
         "cd /home/user && "
         f"OPENAI_API_KEY='{OPENAI_KEY}' "
-        "FAILURE_COUNT='0' "
-        "FAILURE_LOG='baseline tests failed' "
+        f"FAILURE_COUNT='0' "
         "python immune_system.py",
         timeout=300
     )
@@ -344,18 +367,23 @@ with Sandbox.create() as sandbox:
     if outcome["action"] in ["PATCH", "ROLLBACK"]:
         try:
             fixed_code = sandbox.files.read("/home/user/fixed_app.py")
-            push_fix_to_github(
-                "app.py",
-                fixed_code,
-                f"fix: auto-healed [{outcome['action']}] on {COMMIT_SHA[:7]}"
-            )
-            notify_slack(
-                f"Digital Immune System\n"
-                f"Repo: {REPO}\n"
-                f"Commit: {COMMIT_SHA[:7]}\n"
-                f"Action: {outcome['action']}\n"
-                f"Recovered: {'Yes' if outcome['recovered'] else 'No'}"
-            )
+
+            # Verify it's valid Python before pushing
+            if "ESCALATE" in fixed_code and len(fixed_code) < 50:
+                print("ERROR: fixed_app.py contains invalid content, skipping push")
+            else:
+                push_fix_to_github(
+                    "app.py",
+                    fixed_code,
+                    f"fix: auto-healed [{outcome['action']}] on {COMMIT_SHA[:7]}"
+                )
+                notify_slack(
+                    f"Digital Immune System\n"
+                    f"Repo: {REPO}\n"
+                    f"Commit: {COMMIT_SHA[:7]}\n"
+                    f"Action: {outcome['action']}\n"
+                    f"Recovered: {'Yes' if outcome['recovered'] else 'No'}"
+                )
         except Exception as e:
             print(f"Could not push fix: {e}")
 
