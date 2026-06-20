@@ -7,7 +7,7 @@ app = FastAPI()
 
 # ── Feature flag ──────────────────────────────────────────────────────────────
 # Developer toggles this to True when committing the new feature
-DISCOUNT_ENGINE_ENABLED = True   # ← starts False (stable)
+DISCOUNT_ENGINE_ENABLED = False   # ← starts False (stable)
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 products = {
