@@ -150,9 +150,20 @@ def patch_app(reason: str) -> str:
         f.write(code)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(code)
+
+    # Reload app module so health check uses fixed code
+    import importlib
+    spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
+    app_module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = app_module
+    spec.loader.exec_module(app_module)
+    global app, client
+    app = app_module.app
+    client = TestClient(app, raise_server_exceptions=False)
+
     return f"Patched: {reason}"
 
-
+    
 @tool
 def rollback_app(reason: str) -> str:
     """
@@ -171,9 +182,20 @@ def rollback_app(reason: str) -> str:
         f.write(code)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(code)
+
+    # Reload app module so health check uses rolled back code
+    import importlib
+    spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
+    app_module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = app_module
+    spec.loader.exec_module(app_module)
+    global app, client
+    app = app_module.app
+    client = TestClient(app, raise_server_exceptions=False)
+
     return f"Rolled back: {reason}"
 
-
+    
 @tool
 def escalate(reason: str) -> str:
     """
