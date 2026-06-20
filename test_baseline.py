@@ -14,11 +14,11 @@ def test_save10_coupon():
         "product_id": 1, "quantity": 2, "coupon": "SAVE10"
     })
     assert response.status_code == 200
-    assert response.json()["total"] == 18
+    assert response.json()["total"] == 18.0
 
 def test_save50_coupon():
     response = client.post("/order", json={
         "product_id": 2, "quantity": 4, "coupon": "SAVE50"
     })
     assert response.status_code == 200
-    assert response.json()["total"] == 4
+    assert response.json()["total"] == 4.0
