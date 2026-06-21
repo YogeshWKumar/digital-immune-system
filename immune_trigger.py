@@ -126,7 +126,7 @@ def save_test_to_file(content: str) -> str:
         f.write(content + "\\n")
     if "def test_" not in content:
         raise RuntimeError("No test functions found")
-    return content
+    return "Tests saved successfully to /home/user/test_generated.py"
 
 
 @tool
@@ -261,7 +261,7 @@ def escalate(reason: str) -> str:
 
 
 # ── Agents ────────────────────────────────────────────────────────────────────
-monitor_agent    = ToolCallingAgent(name="MonitorAgent",    model=model, tools=[check_health])
+monitor_agent    = ToolCallingAgent(name="MonitorAgent",    model=model, tools=[check_health], max_steps=1)
 testgen_agent    = ToolCallingAgent(name="TestGenAgent",    model=model, tools=[save_test_to_file], max_steps=3)
 testrunner_agent = ToolCallingAgent(name="TestRunnerAgent", model=model, tools=[run_tests], max_steps=2)
 guardian_agent   = CodeAgent(name="GuardianAgent",          model=model, tools=[])
@@ -277,7 +277,18 @@ class ImmuneState(TypedDict):
     decision: str
     heal_result: str
     recovered: bool
+    stable_sha: Optional[str]
 
+def print_state(state: ImmuneState, node_name: str):
+    print(f"\\n{'='*50}")
+    print(f"State after {node_name}:")
+    print(f"  all_healthy : {state['all_healthy']}")
+    print(f"  decision    : {state['decision']}")
+    print(f"  recovered   : {state['recovered']}")
+    print(f"  test_code   : {state['test_code'][:80] if state['test_code'] else 'empty'}...")
+    print(f"  test_result : {state['test_result'][:80] if state['test_result'] else 'empty'}...")
+    print(f"  heal_result : {state['heal_result'][:80] if state['heal_result'] else 'empty'}...")
+    print(f"{'='*50}\\n")    
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 def monitor_node(state: ImmuneState) -> ImmuneState:
@@ -287,7 +298,9 @@ def monitor_node(state: ImmuneState) -> ImmuneState:
     all_healthy = isinstance(health, dict) and all(
         v.get("healthy") for v in health.values() if isinstance(v, dict)
     )
-    return {**state, "health": str(health), "all_healthy": all_healthy}
+    new_state = {**state, "health": str(health), "all_healthy": all_healthy}
+    print_state(new_state, "monitor_node")
+    return new_state
 
 
 def testgen_node(state: ImmuneState) -> ImmuneState:
@@ -308,7 +321,9 @@ def testgen_node(state: ImmuneState) -> ImmuneState:
     testgen_agent.run(prompt)
     with open("/home/user/test_generated.py", "r") as f:
         test_code = f.read()
-    return {**state, "test_code": test_code}
+    new_state = {**state, "test_code": test_code}
+    print_state(new_state, "testgen_node")
+    return new_state
 
 
 def testrunner_node(state: ImmuneState) -> ImmuneState:
@@ -317,7 +332,9 @@ def testrunner_node(state: ImmuneState) -> ImmuneState:
         f"Run these tests and report results:\\n{state[\'test_code\']}"
     )
     print(f"Result: {test_result}")
-    return {**state, "test_result": str(test_result)}
+    new_state = {**state, "test_result": str(test_result)}
+    print_state(new_state, "testrunner_node")
+    return new_state
 
 
 def guardian_node(state: ImmuneState) -> ImmuneState:
@@ -339,7 +356,9 @@ def guardian_node(state: ImmuneState) -> ImmuneState:
             decision = word
             break
     print(f"Decision: {decision}")
-    return {**state, "decision": decision}
+    new_state = {**state, "decision": decision}
+    print_state(new_state, "guardian_node")
+    return new_state
 
 
 def healer_node(state: ImmuneState) -> ImmuneState:
@@ -356,7 +375,12 @@ def healer_node(state: ImmuneState) -> ImmuneState:
         f"Call ONLY the tool that matches: {action}"
     )
     heal_result = healer_agent.run(prompt)
-    return {**state, "heal_result": str(heal_result)}
+    import re
+    sha_match = re.search(r'stable commit ([a-f0-9]{7})', str(heal_result))
+    stable_sha = sha_match.group(1) if sha_match else None
+    new_state = {**state, "heal_result": str(heal_result), "stable_sha": stable_sha}
+    print_state(new_state, "healer_node")
+    return new_state
 
 
 def verify_node(state: ImmuneState) -> ImmuneState:
@@ -366,7 +390,9 @@ def verify_node(state: ImmuneState) -> ImmuneState:
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
     print("Recovered" if recovered else "Still degraded")
-    return {**state, "recovered": recovered}
+    new_state={**state, "recovered": recovered}
+    print_state(new_state, "verify_node")
+    return new_state
 
 
 # ── Conditional edge ──────────────────────────────────────────────────────────
@@ -406,7 +432,8 @@ initial_state: ImmuneState = {
     "test_result": "",
     "decision": "NONE",
     "heal_result": "",
-    "recovered": False
+    "recovered": False,
+    "stable_sha": None
 }
 
 final_state = immune_graph.invoke(initial_state)
@@ -414,7 +441,8 @@ final_state = immune_graph.invoke(initial_state)
 with open("/home/user/result.json", "w") as f:
     json.dump({
         "action": final_state["decision"],
-        "recovered": final_state["recovered"]
+        "recovered": final_state["recovered"],
+        "stable_sha": final_state["stable_sha"]
     }, f)
 '''
 
@@ -461,10 +489,15 @@ with Sandbox.create() as sandbox:
             if "ESCALATE" in fixed_code and len(fixed_code) < 50:
                 print("ERROR: fixed_app.py contains invalid content, skipping push")
             else:
+                # Build commit message
+                if outcome["action"] == "ROLLBACK" and outcome.get("stable_sha"):
+                    message = f"fix: auto-healed [ROLLBACK] triggered by {COMMIT_SHA[:7]} restored to {outcome['stable_sha']}"
+                else:
+                    message = f"fix: auto-healed [{outcome['action']}] on {COMMIT_SHA[:7]}"
                 push_fix_to_github(
                     "app.py",
                     fixed_code,
-                    f"fix: auto-healed [{outcome['action']}] on {COMMIT_SHA[:7]}"
+                    message
                 )
                 notify_slack(
                     f"Digital Immune System\n"
