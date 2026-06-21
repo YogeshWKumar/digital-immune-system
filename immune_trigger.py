@@ -426,7 +426,7 @@ with Sandbox.create() as sandbox:
         f"OPENAI_API_KEY='{OPENAI_KEY}' "
         f"GH_TOKEN='{GH_TOKEN}' "
         f"REPO='{REPO}' "
-        "FAILURE_COUNT='0' "
+        "FAILURE_COUNT='1' "
         "python immune_system.py",
         timeout=300
     )
