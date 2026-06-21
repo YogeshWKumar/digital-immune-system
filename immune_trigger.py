@@ -463,7 +463,8 @@ initial_state: ImmuneState = {
     "decision": "NONE",
     "heal_result": "",
     "recovered": False,
-    "stable_sha": None
+    "stable_sha": None,
+    "retest_result": ""
 }
 
 final_state = immune_graph.invoke(initial_state)
