@@ -183,8 +183,8 @@ def patch_app(reason: str) -> str:
 @tool
 def rollback_app(reason: str) -> str:
     """
-    Rolls back app.py to the last commit where CI passed by checking GitHub.
-    Uses GitHub Checks API to find the last verified stable commit.
+    Rolls back app.py to the last commit where CI workflow passed.
+    Uses GitHub workflow-runs API to find last verified stable commit.
 
     Args:
         reason: Description of why the rollback is being performed.
@@ -217,7 +217,7 @@ def rollback_app(reason: str) -> str:
     except Exception as e:
         return f"Failed to fetch commits: {e}"
 
-    # Step 2: Find last commit where CI passed
+    # Step 2: Find last commit where CI workflow passed
     stable_sha = None
     stable_message = None
 
@@ -226,22 +226,23 @@ def rollback_app(reason: str) -> str:
         message = commit["commit"]["message"]
 
         try:
+            # Use workflow-runs API for reliable CI status
             req2 = urllib.request.Request(
-                f"https://api.github.com/repos/{repo}/commits/{sha}/check-runs",
+                f"https://api.github.com/repos/{repo}/actions/runs?head_sha={sha}",
                 headers=headers
             )
             with urllib.request.urlopen(req2) as r:
-                checks = _json.loads(r.read())
+                data = _json.loads(r.read())
 
-            runs = checks.get("check_runs", [])
+            workflow_runs = data.get("workflow_runs", [])
 
-            if not runs:
+            if not workflow_runs:
                 continue
 
-            # All check runs must be completed and successful
+            # All workflow runs must be completed and successful
             all_passed = all(
                 run["status"] == "completed" and run["conclusion"] == "success"
-                for run in runs
+                for run in workflow_runs
             )
 
             if all_passed:
@@ -276,7 +277,7 @@ def rollback_app(reason: str) -> str:
     reload_app()
 
     return (
-        f"Rolled back to last stable commit {stable_sha[:7]} "
+        f"Rolled back to stable commit {stable_sha[:7]} "
         f"({stable_message[:50]}): {reason}"
     )
 
