@@ -279,6 +279,7 @@ class ImmuneState(TypedDict):
     heal_result: str
     recovered: bool
     stable_sha: Optional[str]
+    retest_result: str
 
 def print_state(state: ImmuneState, node_name: str):
     print(f"\\n{'='*50}")
@@ -289,6 +290,7 @@ def print_state(state: ImmuneState, node_name: str):
     print(f"  test_code   : {state['test_code'][:80] if state['test_code'] else 'empty'}...")
     print(f"  test_result : {state['test_result'][:80] if state['test_result'] else 'empty'}...")
     print(f"  heal_result : {state['heal_result'][:80] if state['heal_result'] else 'empty'}...")
+    print(f"  retest_result : {state['retest_result'][:80] if state['retest_result'] else 'empty'}...")
     print(f"{'='*50}\\n")    
 
 
@@ -407,10 +409,19 @@ def verify_node(state: ImmuneState) -> ImmuneState:
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
     print("Recovered" if recovered else "Still degraded")
-    new_state={**state, "recovered": recovered}
+    new_state={**state, "recovered": recovered, "all_healthy": recovered}
     print_state(new_state, "verify_node")
     return new_state
 
+def retest_node(state: ImmuneState) -> ImmuneState:
+    print("\\nRetestAgent re-running tests after heal...")
+    retest_result = testrunner_agent.run(
+        f"Re-run these tests and report results:\\n{state[\'test_code\']}"
+    )
+    print(f"Retest result: {retest_result}")
+    new_state = {**state, "test_result": str(retest_result)}
+    print_state(new_state, "retest_node")
+    return new_state    
 
 # ── Conditional edge ──────────────────────────────────────────────────────────
 def route_after_monitor(state: ImmuneState):
@@ -426,6 +437,7 @@ graph.add_node("testrunner", testrunner_node)
 graph.add_node("guardian",   guardian_node)
 graph.add_node("healer",     healer_node)
 graph.add_node("verify",     verify_node)
+graph.add_node("retest", retest_node)
 
 graph.set_entry_point("monitor")
 
@@ -435,7 +447,8 @@ graph.add_edge("testgen",    "testrunner")
 graph.add_edge("testrunner", "guardian")
 graph.add_edge("guardian",   "healer")
 graph.add_edge("healer",     "verify")
-graph.add_edge("verify",     END)
+graph.add_edge("verify",     "retest")
+graph.add_edge("retest",  END)
 
 immune_graph = graph.compile()
 
