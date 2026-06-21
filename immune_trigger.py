@@ -294,6 +294,14 @@ def print_state(state: ImmuneState, node_name: str):
 def monitor_node(state: ImmuneState) -> ImmuneState:
     print("\\nMonitorAgent scanning...")
     health = monitor_agent.run("Run health checks on the order API.")
+    
+    # Read raw dict from agent memory
+    health = None
+    for step in reversed(monitor_agent.memory.steps):
+        if hasattr(step, "observations") and isinstance(step.observations, dict):
+            health = step.observations
+            break
+
     print(f"Health: {health}")
     all_healthy = isinstance(health, dict) and all(
         v.get("healthy") for v in health.values() if isinstance(v, dict)
@@ -385,7 +393,15 @@ def healer_node(state: ImmuneState) -> ImmuneState:
 
 def verify_node(state: ImmuneState) -> ImmuneState:
     print("\\nVerifying recovery...")
-    health_after = monitor_agent.run("Run health checks again and confirm recovery.")
+    monitor_agent.run("Run health checks again and confirm recovery.")
+
+    # Read raw dict from agent memory
+    health_after = None
+    for step in reversed(monitor_agent.memory.steps):
+        if hasattr(step, "observations") and isinstance(step.observations, dict):
+            health_after = step.observations
+            break
+
     recovered = isinstance(health_after, dict) and all(
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
