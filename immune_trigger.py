@@ -52,6 +52,8 @@ import sys
 import json
 import subprocess
 import importlib
+from typing import TypedDict
+from langgraph.graph import StateGraph, END
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
 
@@ -69,9 +71,11 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"]
 )
 
+failure_log   = os.environ.get("FAILURE_LOG", "")
+failure_count = int(os.environ.get("FAILURE_COUNT", "0"))
+
 
 def reload_app():
-    """Reload app module after file changes so health check uses updated code."""
     global app, client
     spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
     app_module = importlib.util.module_from_spec(spec)
@@ -81,6 +85,7 @@ def reload_app():
     client = TestClient(app, raise_server_exceptions=False)
 
 
+# ── Tools ─────────────────────────────────────────────────────────────────────
 @tool
 def check_health() -> dict:
     """
@@ -88,28 +93,24 @@ def check_health() -> dict:
     Returns a health report showing which scenarios pass or fail.
     """
     results = {}
-
     r1 = client.post("/order", json={"product_id": 1, "quantity": 2})
     results["basic_order"] = {
         "status_code": r1.status_code,
         "healthy": r1.status_code == 200 and r1.json().get("total") == 20.0,
         "response": r1.json()
     }
-
     r2 = client.post("/order", json={"product_id": 1, "quantity": 2, "coupon": "SAVE10"})
     results["save10_coupon"] = {
         "status_code": r2.status_code,
         "healthy": r2.status_code == 200 and r2.json().get("total") == 18.0,
         "response": r2.json()
     }
-
     r3 = client.post("/order", json={"product_id": 2, "quantity": 4, "coupon": "SAVE50"})
     results["save50_coupon"] = {
         "status_code": r3.status_code,
         "healthy": r3.status_code == 200 and r3.json().get("total") == 4.0,
         "response": r3.json()
     }
-
     return results
 
 
@@ -140,8 +141,7 @@ def run_tests(test_code: str) -> dict:
         f.write(test_code + "\\n")
     result = subprocess.run(
         ["pytest", "/home/user/test_generated.py", "-v", "--tb=short"],
-        capture_output=True,
-        text=True
+        capture_output=True, text=True
     )
     return {
         "status": "passed" if result.returncode == 0 else "failed",
@@ -155,27 +155,22 @@ def run_tests(test_code: str) -> dict:
 def patch_app(reason: str) -> str:
     """
     Patches the buggy SAVE50 discount calculation in app.py.
-    Fixes division bug by replacing / with * in calculate_price.
 
     Args:
         reason: Description of the fix being applied to the app.
     """
     with open("/home/user/app.py", "r") as f:
         code = f.read()
-
     fixed = code.replace(
         "return round(price / quantity * 0.5, 2)",
         "return round(price * quantity * 0.5, 2)"
     )
-
     if fixed == code:
         return "No bug pattern found to patch"
-
     with open("/home/user/app.py", "w") as f:
         f.write(fixed)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(fixed)
-
     reload_app()
     return f"Patched: {reason}"
 
@@ -184,102 +179,72 @@ def patch_app(reason: str) -> str:
 def rollback_app(reason: str) -> str:
     """
     Rolls back app.py to the last commit where CI workflow passed.
-    Uses GitHub workflow-runs API to find last verified stable commit.
 
     Args:
         reason: Description of why the rollback is being performed.
     """
     import urllib.request
-    import urllib.error
     import json as _json
     import base64 as _base64
 
     gh_token = os.environ.get("GH_TOKEN", "")
     repo     = os.environ.get("REPO", "")
-
-    if not gh_token or not repo:
-        return "Missing GH_TOKEN or REPO environment variables"
-
-    headers = {
+    headers  = {
         "Authorization": f"token {gh_token}",
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "digital-immune-system"
     }
 
-    # Step 1: Get recent commits
-    try:
-        req = urllib.request.Request(
-            f"https://api.github.com/repos/{repo}/commits?per_page=20",
-            headers=headers
-        )
-        with urllib.request.urlopen(req) as r:
-            commits = _json.loads(r.read())
-    except Exception as e:
-        return f"Failed to fetch commits: {e}"
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{repo}/commits?per_page=20",
+        headers=headers
+    )
+    with urllib.request.urlopen(req) as r:
+        commits = _json.loads(r.read())
 
-    # Step 2: Find last commit where CI workflow passed
     stable_sha = None
     stable_message = None
-
     for commit in commits:
         sha = commit["sha"]
         message = commit["commit"]["message"]
-
         try:
-            # Use workflow-runs API for reliable CI status
             req2 = urllib.request.Request(
                 f"https://api.github.com/repos/{repo}/actions/runs?head_sha={sha}",
                 headers=headers
             )
             with urllib.request.urlopen(req2) as r:
                 data = _json.loads(r.read())
-
             workflow_runs = data.get("workflow_runs", [])
-
             if not workflow_runs:
                 continue
-
-            # All workflow runs must be completed and successful
             all_passed = all(
                 run["status"] == "completed" and run["conclusion"] == "success"
                 for run in workflow_runs
             )
-
             if all_passed:
                 stable_sha = sha
                 stable_message = message
                 break
-
         except Exception:
             continue
 
     if not stable_sha:
         return "Could not find any stable commit in recent history"
 
-    # Step 3: Fetch app.py from that stable commit
-    try:
-        req3 = urllib.request.Request(
-            f"https://api.github.com/repos/{repo}/contents/app.py?ref={stable_sha}",
-            headers=headers
-        )
-        with urllib.request.urlopen(req3) as r:
-            file_data = _json.loads(r.read())
-        stable_code = _base64.b64decode(file_data["content"]).decode("utf-8")
-    except Exception as e:
-        return f"Failed to fetch app.py from commit {stable_sha[:7]}: {e}"
+    req3 = urllib.request.Request(
+        f"https://api.github.com/repos/{repo}/contents/app.py?ref={stable_sha}",
+        headers=headers
+    )
+    with urllib.request.urlopen(req3) as r:
+        file_data = _json.loads(r.read())
+    stable_code = _base64.b64decode(file_data["content"]).decode("utf-8")
 
-    # Step 4: Write to sandbox and fixed_app.py
     with open("/home/user/app.py", "w") as f:
         f.write(stable_code)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(stable_code)
-
     reload_app()
-
-    return (
-        f"Rolled back to stable commit {stable_sha[:7]} "
-        f"({stable_message[:50]}): {reason}"
-    )
+    return f"Rolled back to stable commit {stable_sha[:7]} ({stable_message[:50]}): {reason}"
 
 
 @tool
@@ -295,117 +260,162 @@ def escalate(reason: str) -> str:
     return msg
 
 
+# ── Agents ────────────────────────────────────────────────────────────────────
 monitor_agent    = ToolCallingAgent(name="MonitorAgent",    model=model, tools=[check_health])
 testgen_agent    = ToolCallingAgent(name="TestGenAgent",    model=model, tools=[save_test_to_file], max_steps=3)
 testrunner_agent = ToolCallingAgent(name="TestRunnerAgent", model=model, tools=[run_tests], max_steps=2)
-guardian_agent   = CodeAgent(name="GuardianAgent", model=model, tools=[])
+guardian_agent   = CodeAgent(name="GuardianAgent",          model=model, tools=[])
 healer_agent     = ToolCallingAgent(name="HealerAgent",     model=model, tools=[patch_app, rollback_app, escalate], max_steps=3)
 
-failure_log   = os.environ.get("FAILURE_LOG", "")
-failure_count = int(os.environ.get("FAILURE_COUNT", "0"))
 
-print("\\nDIGITAL IMMUNE SYSTEM ACTIVATED\\n")
+# ── State ─────────────────────────────────────────────────────────────────────
+class ImmuneState(TypedDict):
+    health: str
+    all_healthy: bool
+    test_code: str
+    test_result: str
+    decision: str
+    heal_result: str
+    recovered: bool
 
-# ── Step 1: Monitor ───────────────────────────────────────────────────────────
-print("MonitorAgent scanning...")
-health = monitor_agent.run("Run health checks on the order API.")
-print(f"Health: {health}\\n")
 
-all_healthy = isinstance(health, dict) and all(
-    v.get("healthy") for v in health.values() if isinstance(v, dict)
-)
+# ── Nodes ─────────────────────────────────────────────────────────────────────
+def monitor_node(state: ImmuneState) -> ImmuneState:
+    print("\\nMonitorAgent scanning...")
+    health = monitor_agent.run("Run health checks on the order API.")
+    print(f"Health: {health}")
+    all_healthy = isinstance(health, dict) and all(
+        v.get("healthy") for v in health.values() if isinstance(v, dict)
+    )
+    return {**state, "health": str(health), "all_healthy": all_healthy}
 
-if all_healthy:
-    print("All healthy - no regression detected")
-    with open("/home/user/result.json", "w") as f:
-        json.dump({"action": "NONE", "recovered": True}, f)
 
-else:
-    print("Regression detected\\n")
-
-    # ── Step 2: Generate tests ────────────────────────────────────────────────
-    print("TestGenAgent generating tests...")
+def testgen_node(state: ImmuneState) -> ImmuneState:
+    print("\\nTestGenAgent generating tests...")
     prompt = (
-        f"Regression detected. Health: {health}\\n"
+        f"Regression detected. Health: {state[\'health\']}\\n"
         f"Failure log: {failure_log}\\n\\n"
         "Generate pytest tests using ONLY:\\n"
         "    from fastapi.testclient import TestClient\\n"
         "    from app import app\\n"
         "    client = TestClient(app)\\n\\n"
         "Test these three scenarios:\\n"
-        "    client.post(\\"/order\\", json={\\"product_id\\": 1, \\"quantity\\": 2}) -> total == 20.0\\n"
-        "    client.post(\\"/order\\", json={\\"product_id\\": 1, \\"quantity\\": 2, \\"coupon\\": \\"SAVE10\\"}) -> total == 18.0\\n"
-        "    client.post(\\"/order\\", json={\\"product_id\\": 2, \\"quantity\\": 4, \\"coupon\\": \\"SAVE50\\"}) -> total == 4.0\\n\\n"
+        "    POST /order product_id=1 quantity=2 -> total == 20.0\\n"
+        "    POST /order product_id=1 quantity=2 coupon=SAVE10 -> total == 18.0\\n"
+        "    POST /order product_id=2 quantity=4 coupon=SAVE50 -> total == 4.0\\n\\n"
         "Include all necessary imports. Call save_test_to_file when done."
     )
     testgen_agent.run(prompt)
-
-    # Read actual test code from file
     with open("/home/user/test_generated.py", "r") as f:
         test_code = f.read()
+    return {**state, "test_code": test_code}
 
-    # ── Step 3: Run tests ─────────────────────────────────────────────────────
+
+def testrunner_node(state: ImmuneState) -> ImmuneState:
     print("\\nTestRunnerAgent running tests...")
     test_result = testrunner_agent.run(
-        f"Run these tests and report results:\\n{test_code}"
+        f"Run these tests and report results:\\n{state[\'test_code\']}"
     )
-    print(f"Result: {test_result}\\n")
+    print(f"Result: {test_result}")
+    return {**state, "test_result": str(test_result)}
 
-    # ── Step 4: Guardian decides ──────────────────────────────────────────────
-    print("GuardianAgent deciding...")
-    guardian_prompt = (
+
+def guardian_node(state: ImmuneState) -> ImmuneState:
+    print("\\nGuardianAgent deciding...")
+    prompt = (
         f"Regression in order API.\\n"
-        f"Health: {health}\\n"
-        f"Test result: {test_result}\\n"
+        f"Health: {state[\'health\']}\\n"
+        f"Test result: {state[\'test_result\']}\\n"
         f"Times failed before: {failure_count}\\n\\n"
         "PATCH    if failure_count == 0 and bug is in calculation logic (/ instead of *)\\n"
         "ROLLBACK if failure_count >= 1\\n"
         "ESCALATE if failure_count >= 3\\n\\n"
         "Return ONLY one word: PATCH, ROLLBACK, or ESCALATE"
     )
-    decision_raw = guardian_agent.run(guardian_prompt)
-
-    action = "ROLLBACK"
+    decision_raw = guardian_agent.run(prompt)
+    decision = "ROLLBACK"
     for word in ["ESCALATE", "PATCH", "ROLLBACK"]:
         if word in str(decision_raw).upper():
-            action = word
+            decision = word
             break
-    print(f"Decision: {action}\\n")
+    print(f"Decision: {decision}")
+    return {**state, "decision": decision}
 
-    # ── Step 5: Heal ──────────────────────────────────────────────────────────
-    print(f"HealerAgent executing {action}...")
-    healer_prompt = (
+
+def healer_node(state: ImmuneState) -> ImmuneState:
+    action = state["decision"]
+    print(f"\\nHealerAgent executing {action}...")
+    prompt = (
         f"Decision: {action}\\n"
-        f"Health: {health}\\n\\n"
-        f"You MUST call ONLY ONE tool based on the decision.\\n"
+        f"Health: {state[\'health\']}\\n\\n"
+        "You MUST call ONLY ONE tool based on the decision.\\n"
         f"The decision is: {action}\\n\\n"
-        f"If decision is PATCH    - call patch_app only\\n"
-        f"If decision is ROLLBACK - call rollback_app only\\n"
-        f"If decision is ESCALATE - call escalate only\\n\\n"
+        "If PATCH    - call patch_app only\\n"
+        "If ROLLBACK - call rollback_app only\\n"
+        "If ESCALATE - call escalate only\\n\\n"
         f"Call ONLY the tool that matches: {action}"
     )
-    healer_agent.run(healer_prompt)
+    heal_result = healer_agent.run(prompt)
+    return {**state, "heal_result": str(heal_result)}
 
-    # ── Step 6: Verify ────────────────────────────────────────────────────────
+
+def verify_node(state: ImmuneState) -> ImmuneState:
     print("\\nVerifying recovery...")
     health_after = monitor_agent.run("Run health checks again and confirm recovery.")
     recovered = isinstance(health_after, dict) and all(
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
     print("Recovered" if recovered else "Still degraded")
+    return {**state, "recovered": recovered}
 
-    # ── Step 7: Write result ──────────────────────────────────────────────────
-    # Only write fixed_app.py if PATCH or ROLLBACK actually modified the file
-    fixed_app_exists = os.path.exists("/home/user/fixed_app.py")
-    if not fixed_app_exists and action not in ["ESCALATE"]:
-        # Copy current app.py as fixed if healer didn\'t write fixed_app.py
-        with open("/home/user/app.py", "r") as f:
-            content = f.read()
-        with open("/home/user/fixed_app.py", "w") as f:
-            f.write(content)
 
-    with open("/home/user/result.json", "w") as f:
-        json.dump({"action": action, "recovered": recovered}, f)
+# ── Conditional edge ──────────────────────────────────────────────────────────
+def route_after_monitor(state: ImmuneState):
+    return "testgen" if not state["all_healthy"] else END
+
+
+# ── Build graph ───────────────────────────────────────────────────────────────
+graph = StateGraph(ImmuneState)
+
+graph.add_node("monitor",    monitor_node)
+graph.add_node("testgen",    testgen_node)
+graph.add_node("testrunner", testrunner_node)
+graph.add_node("guardian",   guardian_node)
+graph.add_node("healer",     healer_node)
+graph.add_node("verify",     verify_node)
+
+graph.set_entry_point("monitor")
+
+graph.add_conditional_edges("monitor", route_after_monitor,
+    {"testgen": "testgen", END: END})
+graph.add_edge("testgen",    "testrunner")
+graph.add_edge("testrunner", "guardian")
+graph.add_edge("guardian",   "healer")
+graph.add_edge("healer",     "verify")
+graph.add_edge("verify",     END)
+
+immune_graph = graph.compile()
+
+# ── Run ───────────────────────────────────────────────────────────────────────
+print("\\nDIGITAL IMMUNE SYSTEM ACTIVATED\\n")
+
+initial_state: ImmuneState = {
+    "health": "",
+    "all_healthy": False,
+    "test_code": "",
+    "test_result": "",
+    "decision": "NONE",
+    "heal_result": "",
+    "recovered": False
+}
+
+final_state = immune_graph.invoke(initial_state)
+
+with open("/home/user/result.json", "w") as f:
+    json.dump({
+        "action": final_state["decision"],
+        "recovered": final_state["recovered"]
+    }, f)
 '''
 
 print(f"Fetching app.py from GitHub at {COMMIT_SHA[:7]}...")
@@ -414,7 +424,7 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph",
         timeout=120
     )
 
@@ -426,7 +436,7 @@ with Sandbox.create() as sandbox:
         f"OPENAI_API_KEY='{OPENAI_KEY}' "
         f"GH_TOKEN='{GH_TOKEN}' "
         f"REPO='{REPO}' "
-        "FAILURE_COUNT='3' "
+        "FAILURE_COUNT='0' "
         "python immune_system.py",
         timeout=300
     )
