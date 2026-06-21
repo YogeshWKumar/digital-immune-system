@@ -331,10 +331,11 @@ def testgen_node(state: ImmuneState) -> ImmuneState:
         "    from fastapi.testclient import TestClient\\n"
         "    from app import app\\n"
         "    client = TestClient(app)\\n\\n"
-        "Test these three scenarios:\\n"
-        "    POST /order product_id=1 quantity=2 -> total == 20.0\\n"
-        "    POST /order product_id=1 quantity=2 coupon=SAVE10 -> total == 18.0\\n"
-        "    POST /order product_id=2 quantity=4 coupon=SAVE50 -> total == 4.0\\n\\n"
+        "IMPORTANT: Assert ONLY response.json()[\'total\'] — do NOT assert the full response dict.\\n"
+        "IMPORTANT: Use ONLY these hardcoded expected totals — do NOT use values from health report:\\n"
+            "POST /order product_id=1 quantity=2               -> assert response.json()[\'total\'] == 20.0\\n"
+            "POST /order product_id=1 quantity=2 coupon=SAVE10 -> assert response.json()[\'total\'] == 18.0\\n"
+            "POST /order product_id=2 quantity=4 coupon=SAVE50 -> assert response.json()[\'total\'] == 4.0\\n\\n"
         "Include all necessary imports. Call save_test_to_file when done."
     )
     testgen_agent.run(prompt)
