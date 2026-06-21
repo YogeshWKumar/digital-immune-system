@@ -284,6 +284,7 @@ class ImmuneState(TypedDict):
 def print_state(state: ImmuneState, node_name: str):
     print(f"\\n{'='*50}")
     print(f"State after {node_name}:")
+    print(f"  health        : {state['health'][:80] if state['health'] else 'empty'}...")
     print(f"  all_healthy : {state['all_healthy']}")
     print(f"  decision    : {state['decision']}")
     print(f"  recovered   : {state['recovered']}")
@@ -419,7 +420,7 @@ def retest_node(state: ImmuneState) -> ImmuneState:
         f"Re-run these tests and report results:\\n{state[\'test_code\']}"
     )
     print(f"Retest result: {retest_result}")
-    new_state = {**state, "test_result": str(retest_result)}
+    new_state = {**state, "retest_result": str(retest_result)}
     print_state(new_state, "retest_node")
     return new_state    
 
