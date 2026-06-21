@@ -52,6 +52,7 @@ import sys
 import json
 import subprocess
 import importlib
+import ast
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
@@ -290,26 +291,25 @@ def print_state(state: ImmuneState, node_name: str):
     print(f"  heal_result : {state['heal_result'][:80] if state['heal_result'] else 'empty'}...")
     print(f"{'='*50}\\n")    
 
+
+def get_health_from_memory(agent):
+    for step in reversed(agent.memory.steps):
+        if hasattr(step, "observations") and step.observations:
+            obs = step.observations
+            if isinstance(obs, dict):
+                return obs
+            if isinstance(obs, str) and "basic_order" in obs:
+                try:
+                    return ast.literal_eval(obs)
+                except Exception:
+                    pass
+    return None    
+    
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 def monitor_node(state: ImmuneState) -> ImmuneState:
     print("\\nMonitorAgent scanning...")
-    health = monitor_agent.run("Run health checks on the order API.")
-    
-    # Debug — print memory step attributes
-    for i, step in enumerate(monitor_agent.memory.steps):
-        print(f"Step {i}: type={type(step).__name__}")
-        print(f"  attrs={[a for a in dir(step) if not a.startswith('_')]}")
-        if hasattr(step, 'observations'):
-            print(f"  observations type={type(step.observations).__name__}")
-            print(f"  observations={str(step.observations)[:100]}")    
-
-    # Read raw dict from agent memory
-    health = None
-    for step in reversed(monitor_agent.memory.steps):
-        if hasattr(step, "observations") and isinstance(step.observations, dict):
-            health = step.observations
-            break
-
+    monitor_agent.run("Run health checks on the order API.")
+    health = get_health_from_memory(monitor_agent)
     print(f"Health: {health}")
     all_healthy = isinstance(health, dict) and all(
         v.get("healthy") for v in health.values() if isinstance(v, dict)
@@ -402,14 +402,7 @@ def healer_node(state: ImmuneState) -> ImmuneState:
 def verify_node(state: ImmuneState) -> ImmuneState:
     print("\\nVerifying recovery...")
     monitor_agent.run("Run health checks again and confirm recovery.")
-
-    # Read raw dict from agent memory
-    health_after = None
-    for step in reversed(monitor_agent.memory.steps):
-        if hasattr(step, "observations") and isinstance(step.observations, dict):
-            health_after = step.observations
-            break
-
+    health_after = get_health_from_memory(monitor_agent)
     recovered = isinstance(health_after, dict) and all(
         v.get("healthy") for v in health_after.values() if isinstance(v, dict)
     )
