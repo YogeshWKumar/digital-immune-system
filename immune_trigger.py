@@ -295,6 +295,14 @@ def monitor_node(state: ImmuneState) -> ImmuneState:
     print("\\nMonitorAgent scanning...")
     health = monitor_agent.run("Run health checks on the order API.")
     
+    # Debug — print memory step attributes
+    for i, step in enumerate(monitor_agent.memory.steps):
+        print(f"Step {i}: type={type(step).__name__}")
+        print(f"  attrs={[a for a in dir(step) if not a.startswith('_')]}")
+        if hasattr(step, 'observations'):
+            print(f"  observations type={type(step.observations).__name__}")
+            print(f"  observations={str(step.observations)[:100]}")    
+
     # Read raw dict from agent memory
     health = None
     for step in reversed(monitor_agent.memory.steps):
