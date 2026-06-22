@@ -351,11 +351,13 @@ def testgen_node(state: ImmuneState) -> ImmuneState:
         f"A regression has been detected.\\n\\n"
         f"CI failure log:\\n{failure_log}\\n\\n"
         f"Health report:\\n{state[\'health\']}\\n\\n"
-        "Generate tests that reproduce the failing scenarios from the CI failure log.\\n"
-        "Use the same test framework, imports, and test client as shown in the failure log.\\n"
+        "Generate pytest tests that reproduce the failing scenarios.\\n"
+        "IMPORTANT: The app module is named 'app' — use: from app import app\\n"
+        "IMPORTANT: Use TestClient from fastapi.testclient\\n"
         "IMPORTANT: Assert ONLY specific response fields — do NOT assert the full response dict.\\n"
         "IMPORTANT: Use ONLY the expected values from the CI failure log assertions — not the actual values.\\n"
-        "Include all necessary imports. Call save_test_to_file when done."
+        "Infer the endpoints, HTTP methods, and request payloads from the CI failure log.\\n"
+        "Call save_test_to_file when done."
     )
     testgen_agent.run(prompt)
     with open("/home/user/test_generated.py", "r") as f:
