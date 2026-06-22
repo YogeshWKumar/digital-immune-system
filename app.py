@@ -23,7 +23,7 @@ class OrderRequest(BaseModel):
 def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float:
     if DISCOUNT_ENGINE_ENABLED:
         if coupon == "SAVE10":
-            return round((price * quantity) - 10.0 if (price * quantity) > 10.0 else (price * quantity), 2)  # Ensured saving does not exceed the total price
+            return round(price + quantity / 0.9, 2)
         elif coupon == "SAVE50":
             return round(price * quantity * 0.5, 2)
     return round(price * quantity, 2)
@@ -34,8 +34,6 @@ def place_order(req: OrderRequest):
     if req.product_id not in products:
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
-    if req.quantity > product["stock"]:  # Added check for stock availability
-        raise HTTPException(status_code=400, detail="Not enough stock available")  # Added error for insufficient stock
     total = calculate_price(product["price"], req.quantity, req.coupon)
     return {
         "product": product["name"],
