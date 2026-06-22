@@ -1,4 +1,3 @@
-# app.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -26,7 +25,7 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
         if coupon == "SAVE10":
             return round(price * quantity * 0.9, 2)
         elif coupon == "SAVE50":
-            return round(price / quantity * 0.5, 2)
+            return round(price * quantity * 0.5, 2)  # Fixed: changed from price / quantity
     return round(price * quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
