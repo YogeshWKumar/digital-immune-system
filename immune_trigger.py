@@ -66,6 +66,8 @@ spec.loader.exec_module(app_module)
 app = app_module.app
 client = TestClient(app, raise_server_exceptions=False)
 
+app_code = open("/home/user/app.py").read()
+
 model = OpenAIServerModel(
     model_id="gpt-4o-mini",
     api_base="https://openai.vocareum.com/v1",
