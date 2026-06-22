@@ -21,12 +21,13 @@ class OrderRequest(BaseModel):
 
 # ── Business logic ────────────────────────────────────────────────────────────
 def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float:
+    total_price = round(price * quantity, 2)  # Calculate total price using price and quantity
     if DISCOUNT_ENGINE_ENABLED:
         if coupon == "SAVE10":
-            return round(price - quantity + 0.9, 2)
+            return round(total_price * 0.9, 2)  # Apply 10% discount
         elif coupon == "SAVE50":
-            return round(price - quantity / 0.5, 2)
-    return round(price * quantity, 2)
+            return round(total_price - 50, 2) if total_price > 50 else total_price  # Apply flat 50 discount but not below 0
+    return total_price  # Return total price if no coupon is applied
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.post("/order")
