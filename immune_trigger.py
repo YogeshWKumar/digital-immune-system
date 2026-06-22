@@ -238,8 +238,10 @@ def patch_app(reason: str) -> str:
         f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
-        "Return ONLY the complete fixed Python file. "
-        "No explanation, no markdown fences, no preamble. "
+        "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
+        "Do NOT reformat, clean up, or remove any comments. "
+        "For each changed line, add an inline comment explaining what was changed. "
+        "Return ONLY the complete fixed Python file with no explanation or markdown. "
         "Just the raw Python code."
     )
 
