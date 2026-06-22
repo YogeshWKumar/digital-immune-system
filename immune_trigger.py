@@ -348,17 +348,13 @@ def monitor_node(state: ImmuneState) -> ImmuneState:
 def testgen_node(state: ImmuneState) -> ImmuneState:
     print("\\nTestGenAgent generating tests...")
     prompt = (
-        f"Regression detected. Health: {state[\'health\']}\\n"
-        f"Failure log: {failure_log}\\n\\n"
-        "Generate pytest tests using ONLY:\\n"
-        "    from fastapi.testclient import TestClient\\n"
-        "    from app import app\\n"
-        "    client = TestClient(app)\\n\\n"
-        "IMPORTANT: Assert ONLY response.json()[\'total\'] — do NOT assert the full response dict.\\n"
-        "IMPORTANT: Use ONLY these hardcoded expected totals — do NOT use values from health report:\\n"
-            "POST /order product_id=1 quantity=2               -> assert response.json()[\'total\'] == 20.0\\n"
-            "POST /order product_id=1 quantity=2 coupon=SAVE10 -> assert response.json()[\'total\'] == 18.0\\n"
-            "POST /order product_id=2 quantity=4 coupon=SAVE50 -> assert response.json()[\'total\'] == 4.0\\n\\n"
+        f"A regression has been detected.\\n\\n"
+        f"CI failure log:\\n{failure_log}\\n\\n"
+        f"Health report:\\n{state[\'health\']}\\n\\n"
+        "Generate tests that reproduce the failing scenarios from the CI failure log.\\n"
+        "Use the same test framework, imports, and test client as shown in the failure log.\\n"
+        "IMPORTANT: Assert ONLY specific response fields — do NOT assert the full response dict.\\n"
+        "IMPORTANT: Use ONLY the expected values from the CI failure log assertions — not the actual values.\\n"
         "Include all necessary imports. Call save_test_to_file when done."
     )
     testgen_agent.run(prompt)
@@ -383,13 +379,15 @@ def testrunner_node(state: ImmuneState) -> ImmuneState:
 def guardian_node(state: ImmuneState) -> ImmuneState:
     print("\\nGuardianAgent deciding...")
     prompt = (
-        f"Regression in order API.\\n"
+        f"A regression has been detected in the application.\\n"
         f"Health: {state[\'health\']}\\n"
         f"Test result: {state[\'test_result\']}\\n"
+        f"CI failure log: {failure_log}\\n"
         f"Times failed before: {failure_count}\\n\\n"
-        "PATCH    if failure_count == 0 and bug is in calculation logic (/ instead of *)\\n"
-        "ROLLBACK if failure_count >= 1\\n"
-        "ESCALATE if failure_count >= 3\\n\\n"
+        "Decide the action based on these rules:\\n"
+        "PATCH    if failure_count == 0 — attempt an automated fix\\n"
+        "ROLLBACK if failure_count >= 1 — previous fix attempt failed, restore last stable commit\\n"
+        "ESCALATE if failure_count >= 3 — auto-healing not working, page on-call\\n\\n"
         "Return ONLY one word: PATCH, ROLLBACK, or ESCALATE"
     )
     decision_raw = guardian_agent.run(prompt)
@@ -409,7 +407,9 @@ def healer_node(state: ImmuneState) -> ImmuneState:
     print(f"\\nHealerAgent executing {action}...")
     prompt = (
         f"Decision: {action}\\n"
-        f"Health: {state[\'health\']}\\n\\n"
+        f"Health: {state[\'health\']}\\n"
+        f"Test result: {state[\'test_result\']}\\n\\n"
+        f"CI failure log: {failure_log}\\n\\n"
         "You MUST call ONLY ONE tool based on the decision.\\n"
         f"The decision is: {action}\\n\\n"
         "If PATCH    - call patch_app only\\n"
