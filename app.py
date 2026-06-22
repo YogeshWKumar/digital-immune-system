@@ -34,6 +34,8 @@ def place_order(req: OrderRequest):
     if req.product_id not in products:
         raise HTTPException(status_code=404, detail="Product not found")
     product = products[req.product_id]
+    if req.quantity > product["stock"]:  # Added check for stock availability
+        raise HTTPException(status_code=400, detail="Not enough stock available")  # Added error for insufficient stock
     total = calculate_price(product["price"], req.quantity, req.coupon)
     return {
         "product": product["name"],
