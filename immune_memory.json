@@ -1,6 +1,6 @@
 {
-  "failure_count": 2,
-  "last_failure_sha": "5dd8d4708da49cf90513aedfb9133b99b6969d8c",
+  "failure_count": 3,
+  "last_failure_sha": "2acaaa8e23d8be670c0d06f38cd61c89e7395d77",
   "last_healed_sha": "d8c88914531164d4fe33031c4a6d5fceb4a7721d",
   "last_healed_at": "2026-06-22T13:29:13.435315+00:00",
   "history": [
@@ -51,6 +51,12 @@
       "action": "PATCH",
       "healed": false,
       "timestamp": "2026-06-22T13:50:59.122849+00:00"
+    },
+    {
+      "sha": "2acaaa8e23d8be670c0d06f38cd61c89e7395d77",
+      "action": "ESCALATE",
+      "healed": false,
+      "timestamp": "2026-06-22T13:52:10.019803+00:00"
     }
   ]
 }
