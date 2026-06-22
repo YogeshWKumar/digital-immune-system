@@ -163,6 +163,27 @@ def patch_app(reason: str) -> str:
     import urllib.request as _urllib
     import json as _json
 
+    # Debug — test exact endpoint reachability from sandbox
+    try:
+        test_payload = _json.dumps({
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": "say hi"}],
+            "max_tokens": 5
+        }).encode()
+
+        test_req = _urllib.Request(
+            "https://openai.vocareum.com/v1/chat/completions",
+            data=test_payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"
+            }
+        )
+        with _urllib.urlopen(test_req) as r:
+            print(f"Endpoint reachable: status={r.status}")
+    except Exception as e:
+            print(f"Endpoint NOT reachable: {type(e).__name__}: {e}")    
+
     with open("/home/user/app.py", "r") as f:
         code = f.read()
 
