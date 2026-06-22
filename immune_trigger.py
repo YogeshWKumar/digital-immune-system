@@ -155,23 +155,72 @@ def run_tests(test_code: str) -> dict:
 @tool
 def patch_app(reason: str) -> str:
     """
-    Patches the buggy SAVE50 discount calculation in app.py.
+    Uses LLM to generate and apply a fix to app.py based on test failure.
 
     Args:
-        reason: Description of the fix being applied to the app.
+        reason: Description of the bug to fix.
     """
+    import urllib.request as _urllib
+    import json as _json
+
     with open("/home/user/app.py", "r") as f:
         code = f.read()
-    fixed = code.replace(
-        "return round(price / quantity * 0.5, 2)",
-        "return round(price * quantity * 0.5, 2)"
+
+    with open("/home/user/test_generated.py", "r") as f:
+        tests = f.read()
+
+    failure_log = os.environ.get("FAILURE_LOG", "")
+
+    prompt = (
+        f"This Python FastAPI file has a bug:\\n\\n"
+        f"```python\\n{code}\\n```\\n\\n"
+        f"These tests are failing:\\n\\n"
+        f"```python\\n{tests}\\n```\\n\\n"
+        f"CI failure output:\\n{failure_log}\\n\\n"
+        f"Reason: {reason}\\n\\n"
+        "Return ONLY the complete fixed Python file. "
+        "No explanation, no markdown fences, no preamble. "
+        "Just the raw Python code."
     )
-    if fixed == code:
-        return "No bug pattern found to patch"
+
+    payload = _json.dumps({
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2000
+    }).encode()
+
+    req = _urllib.Request(
+        "https://openai.vocareum.com/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"
+        }
+    )
+
+    with _urllib.urlopen(req) as r:
+        data = _json.loads(r.read())
+
+    fixed = data["choices"][0]["message"]["content"].strip()
+
+    # Strip markdown fences if LLM added them anyway
+    if fixed.startswith("```"):
+        fixed = "\\n".join(
+            line for line in fixed.split("\\n")
+            if not line.startswith("```")
+        ).strip()
+
+    # Safety check — must still be valid Python
+    try:
+        compile(fixed, "app.py", "exec")
+    except SyntaxError as e:
+        return f"Patch aborted — LLM generated invalid Python: {e}"
+
     with open("/home/user/app.py", "w") as f:
         f.write(fixed)
     with open("/home/user/fixed_app.py", "w") as f:
         f.write(fixed)
+
     reload_app()
     return f"Patched: {reason}"
 
