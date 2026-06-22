@@ -498,7 +498,7 @@ with Sandbox.create() as sandbox:
         f"GH_TOKEN='{GH_TOKEN}' "
         f"REPO='{REPO}' "
         "FAILURE_COUNT='0' "
-        f"FAILURE_LOG={FAILURE_LOG} "
+        f"FAILURE_LOG={repr(FAILURE_LOG)} "
         "python immune_system.py",
         timeout=300
     )
