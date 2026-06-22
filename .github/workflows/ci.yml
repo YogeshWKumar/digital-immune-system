@@ -3,6 +3,8 @@ name: CI + Digital Immune System
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'immune_memory.json'
   pull_request:
     branches: [main]
 
