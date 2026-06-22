@@ -46,6 +46,71 @@ def notify_slack(message):
         requests.post(SLACK_WEBHOOK, json={"text": message})
 
 
+import base64
+from datetime import datetime, timezone
+
+def read_immune_memory():
+    """Read immune_memory.json from GitHub repo."""
+    try:
+        resp = requests.get(
+            f"https://api.github.com/repos/{REPO}/contents/immune_memory.json",
+            headers={
+                "Authorization": f"token {GH_TOKEN}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+        )
+        data = resp.json()
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        memory = json.loads(content)
+        file_sha = data["sha"]
+        return memory, file_sha
+    except Exception as e:
+        print(f"Could not read immune_memory.json: {e}")
+        return {"failure_count": 0, "history": []}, None
+
+
+def update_immune_memory(memory: dict, file_sha: str, healed: bool, action: str):
+    """Write updated immune_memory.json back to GitHub."""
+    if healed:
+        memory["failure_count"] = 0
+        memory["last_healed_sha"] = COMMIT_SHA
+        memory["last_healed_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        memory["failure_count"] = memory.get("failure_count", 0) + 1
+        memory["last_failure_sha"] = COMMIT_SHA
+
+    memory.setdefault("history", []).append({
+        "sha": COMMIT_SHA,
+        "action": action,
+        "healed": healed,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Keep history to last 20 entries
+    memory["history"] = memory["history"][-20:]
+
+    content = base64.b64encode(
+        json.dumps(memory, indent=2).encode("utf-8")
+    ).decode("utf-8")
+
+    payload = {
+        "message": f"chore: immune memory [{action}] {'✅' if healed else '❌'} on {COMMIT_SHA[:7]}",
+        "content": content
+    }
+    if file_sha:
+        payload["sha"] = file_sha
+
+    requests.put(
+        f"https://api.github.com/repos/{REPO}/contents/immune_memory.json",
+        headers={
+            "Authorization": f"token {GH_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        },
+        json=payload
+    )
+    print(f"Memory updated: failure_count={memory['failure_count']}, healed={healed}")
+
+
 IMMUNE_CODE = '''
 import os
 import sys
@@ -520,6 +585,10 @@ with Sandbox.create() as sandbox:
     sandbox.files.write("/home/user/app.py", app_code)
     sandbox.files.write("/home/user/immune_system.py", IMMUNE_CODE)
 
+    memory, memory_sha = read_immune_memory()
+    FAILURE_COUNT = memory.get("failure_count", 0)
+    print(f"Failure count from memory: {FAILURE_COUNT}")
+
     result = sandbox.commands.run(
         "cd /home/user && python immune_system.py",
         timeout=300,
@@ -528,7 +597,7 @@ with Sandbox.create() as sandbox:
             "GH_TOKEN":       GH_TOKEN,
             "REPO":           REPO,
             "CURRENT_SHA":    COMMIT_SHA,
-            "FAILURE_COUNT":  "0",
+            "FAILURE_COUNT":  str(FAILURE_COUNT),
             "FAILURE_LOG":    FAILURE_LOG,
         }        
     )
@@ -544,6 +613,14 @@ with Sandbox.create() as sandbox:
         outcome = {"action": "UNKNOWN", "recovered": False}
 
     print(f"Outcome: {outcome}")
+
+    update_immune_memory(
+        memory,
+        memory_sha,
+        healed=outcome["recovered"],
+        action=outcome["action"]
+    )
+
 
     if outcome["action"] in ["PATCH", "ROLLBACK"]:
         try:
