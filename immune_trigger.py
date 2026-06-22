@@ -158,45 +158,17 @@ def patch_app(reason: str) -> str:
     Uses LLM to generate and apply a fix to app.py based on test failure.
 
     Args:
-        reason: Description of the bug to fix.
+        reason: Description of the fix being applied to the app.
     """
-    import urllib.request as _urllib
-    import json as _json
-
-    # Debug — test exact endpoint reachability from sandbox
-    try:
-        test_payload = _json.dumps({
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": "say hi"}],
-            "max_tokens": 5
-        }).encode()
-
-        test_req = _urllib.Request(
-            "https://openai.vocareum.com/v1/chat/completions",
-            data=test_payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"
-            }
-        )
-        with _urllib.urlopen(test_req) as r:
-            print(f"Endpoint reachable: status={r.status}")
-    except Exception as e:
-            print(f"Endpoint NOT reachable: {type(e).__name__}: {e}")    
+    from smolagents.models import ChatMessage
 
     with open("/home/user/app.py", "r") as f:
         code = f.read()
 
-    with open("/home/user/test_generated.py", "r") as f:
-        tests = f.read()
-
     failure_log = os.environ.get("FAILURE_LOG", "")
 
     prompt = (
-        f"This Python FastAPI file has a bug:\\n\\n"
-        f"```python\\n{code}\\n```\\n\\n"
-        f"These tests are failing:\\n\\n"
-        f"```python\\n{tests}\\n```\\n\\n"
+        f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
         "Return ONLY the complete fixed Python file. "
@@ -204,38 +176,19 @@ def patch_app(reason: str) -> str:
         "Just the raw Python code."
     )
 
-    payload = _json.dumps({
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2000
-    }).encode()
+    response = model([ChatMessage(role="user", content=prompt)])
+    fixed = response.content.strip()
 
-    req = _urllib.Request(
-        "https://openai.vocareum.com/v1/chat/completions",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"
-        }
-    )
-
-    with _urllib.urlopen(req) as r:
-        data = _json.loads(r.read())
-
-    fixed = data["choices"][0]["message"]["content"].strip()
-
-    # Strip markdown fences if LLM added them anyway
     if fixed.startswith("```"):
         fixed = "\\n".join(
             line for line in fixed.split("\\n")
             if not line.startswith("```")
         ).strip()
 
-    # Safety check — must still be valid Python
     try:
         compile(fixed, "app.py", "exec")
     except SyntaxError as e:
-        return f"Patch aborted — LLM generated invalid Python: {e}"
+        return f"Patch aborted — invalid Python: {e}"
 
     with open("/home/user/app.py", "w") as f:
         f.write(fixed)
