@@ -493,14 +493,16 @@ with Sandbox.create() as sandbox:
     sandbox.files.write("/home/user/immune_system.py", IMMUNE_CODE)
 
     result = sandbox.commands.run(
-        "cd /home/user && "
-        f"OPENAI_API_KEY='{OPENAI_KEY}' "
-        f"GH_TOKEN='{GH_TOKEN}' "
-        f"REPO='{REPO}' "
-        "FAILURE_COUNT='0' "
-        f"FAILURE_LOG={repr(FAILURE_LOG)} "
-        "python immune_system.py",
+        "cd /home/user && python immune_system.py",
         timeout=300
+        envs={
+            "OPENAI_API_KEY": OPENAI_KEY,
+            "GH_TOKEN":       GH_TOKEN,
+            "REPO":           REPO,
+            "CURRENT_SHA":    COMMIT_SHA,
+            "FAILURE_COUNT":  "0",
+            "FAILURE_LOG":    FAILURE_LOG,
+        }        
     )
 
     print(result.stdout)
