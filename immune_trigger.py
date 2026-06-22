@@ -349,6 +349,7 @@ def testgen_node(state: ImmuneState) -> ImmuneState:
     print("\\nTestGenAgent generating tests...")
     prompt = (
         f"A regression has been detected.\\n\\n"
+        f"Application source code:\\n```python\\n{app_code}\\n```\\n\\n"
         f"CI failure log:\\n{failure_log}\\n\\n"
         f"Health report:\\n{state[\'health\']}\\n\\n"
         "Generate pytest tests that reproduce the failing scenarios.\\n"
