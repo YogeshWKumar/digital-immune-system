@@ -1,5 +1,5 @@
 {
-  "failure_count": 3,
+  "failure_count": 0,
   "last_failure_sha": "2acaaa8e23d8be670c0d06f38cd61c89e7395d77",
   "last_healed_sha": "d8c88914531164d4fe33031c4a6d5fceb4a7721d",
   "last_healed_at": "2026-06-22T13:29:13.435315+00:00",
