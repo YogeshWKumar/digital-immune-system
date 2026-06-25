@@ -237,19 +237,24 @@ def patch_app(reason: str, test_code: str, test_result: str) -> str:
     failure_log = os.environ.get("FAILURE_LOG", "")
 
     prompt = (
-        f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
-        f"Failing tests:\\n{test_code}\\n\\n"
-        f"Test runner output:\n{test_result}\\n\\n"
-        f"CI failure output:\\n{failure_log}\\n\\n"
-        f"Reason: {reason}\\n\\n"
-        "Trace the failing assertions back through app.py "
-        "to find the exact line producing the wrong value. "
-        "Fix ALL bugs in the file — there may be more than one. "
-        "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
-        "Do NOT reformat, clean up, or remove any comments. "
-        "For each changed line, add an inline comment explaining what was changed. "
-        "Return ONLY the complete fixed Python file with no explanation or markdown. "
-        "Just the raw Python code."
+        "This Python FastAPI file has a bug:\\n\\n"
+        + code
+        + "\\n\\nFailing tests:\\n"
+        + test_code
+        + "\\n\\nTest runner output:\\n"
+        + test_result
+        + "\\n\\nCI failure output:\\n"
+        + failure_log
+        + "\\n\\nReason: "
+        + reason
+        + "\\n\\n"
+        + "Trace the failing assertions back through app.py to find the exact line producing the wrong value. "
+        + "Fix ALL bugs in the file — there may be more than one. "
+        + "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
+        + "Do NOT reformat, clean up, or remove any comments. "
+        + "For each changed line, add an inline comment explaining what was changed. "
+        + "Return ONLY the complete fixed Python file with no explanation or markdown. "
+        + "Just the raw Python code."
     )
 
     response = model([ChatMessage(role="user", content=prompt)])
