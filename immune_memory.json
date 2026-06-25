@@ -5,12 +5,6 @@
   "last_healed_at": "2026-06-25T11:19:10.613025+00:00",
   "history": [
     {
-      "sha": "397a0c86ab701d69d394aafae765277d86f27c2f",
-      "action": "PATCH",
-      "healed": false,
-      "timestamp": "2026-06-22T14:52:31.281465+00:00"
-    },
-    {
       "sha": "6e80e769f855f36cea9a299ee0c5ccbea2f16b9a",
       "action": "ESCALATE",
       "healed": false,
@@ -123,6 +117,12 @@
       "action": "ESCALATE",
       "healed": false,
       "timestamp": "2026-06-25T11:27:29.341465+00:00"
+    },
+    {
+      "sha": "f3b199d18130fb69ea18a0599dae7689027c19fd",
+      "action": "ESCALATE",
+      "healed": false,
+      "timestamp": "2026-06-25T11:36:35.303871+00:00"
     }
   ]
 }
