@@ -220,12 +220,14 @@ def run_tests(test_code: str) -> dict:
 
 
 @tool
-def patch_app(reason: str) -> str:
+def patch_app(reason: str, test_code: str, test_result: str) -> str:
     """
     Uses LLM to generate and apply a fix to app.py based on test failure.
 
     Args:
         reason: Description of the fix being applied to the app.
+        test_code: the pytest source that is failing
+        test_result: the pytest output showing actual vs expected
     """
     from smolagents.models import ChatMessage
 
@@ -236,8 +238,12 @@ def patch_app(reason: str) -> str:
 
     prompt = (
         f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
+        f"Failing tests:\n```python\n{test_code}\n```\\n\\n"
+        f"Test runner output:\n{test_result}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
+        "Trace the failing assertions back through app.py "
+        "to find the exact line producing the wrong value. "
         "Fix ALL bugs in the file — there may be more than one. "
         "Preserve ALL comments, blank lines, and formatting exactly as in the original. "
         "Do NOT reformat, clean up, or remove any comments. "
@@ -486,7 +492,10 @@ def healer_node(state: ImmuneState) -> ImmuneState:
         f"CI failure log: {failure_log}\\n\\n"
         "You MUST call ONLY ONE tool based on the decision.\\n"
         f"The decision is: {action}\\n\\n"
-        "If PATCH    - call patch_app only\\n"
+        "If PATCH - call patch_app with:\\n"
+        f"  reason: why the patch is needed\\n"
+        f"  test_code: pass this exactly:\n{state['test_code']}\\n"
+        f"  test_result: pass this exactly:\n{state['test_result']}\\n"
         "If ROLLBACK - call rollback_app only\\n"
         "If ESCALATE - call escalate only\\n\\n"
         f"Call ONLY the tool that matches: {action}"
