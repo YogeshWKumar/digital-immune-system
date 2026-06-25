@@ -238,7 +238,7 @@ def patch_app(reason: str, test_code: str, test_result: str) -> str:
 
     prompt = (
         f"This Python FastAPI file has a bug:\\n\\n{code}\\n\\n"
-        f"Failing tests:\n```python\n{test_code}\n```\\n\\n"
+        f"Failing tests:\\n{test_code}\\n\\n"
         f"Test runner output:\n{test_result}\\n\\n"
         f"CI failure output:\\n{failure_log}\\n\\n"
         f"Reason: {reason}\\n\\n"
