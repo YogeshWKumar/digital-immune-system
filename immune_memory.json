@@ -1,15 +1,9 @@
 {
   "failure_count": 0,
   "last_failure_sha": "6e80e769f855f36cea9a299ee0c5ccbea2f16b9a",
-  "last_healed_sha": "cec20c18324ac2a3df9ebc8182e3c6c7935f8f12",
-  "last_healed_at": "2026-06-25T08:03:13.590642+00:00",
+  "last_healed_sha": "efbdc34c68a24ee1fc3999f9a66784d0efc74084",
+  "last_healed_at": "2026-06-25T08:27:46.030330+00:00",
   "history": [
-    {
-      "sha": "31848decb2617129928437e3e997e3dededc2d44",
-      "action": "PATCH",
-      "healed": false,
-      "timestamp": "2026-06-22T13:26:42.957430+00:00"
-    },
     {
       "sha": "95c9e4f0840fb90698ca0fdb76a33bded3844ba5",
       "action": "PATCH",
@@ -123,6 +117,12 @@
       "action": "PATCH",
       "healed": true,
       "timestamp": "2026-06-25T08:03:13.590663+00:00"
+    },
+    {
+      "sha": "efbdc34c68a24ee1fc3999f9a66784d0efc74084",
+      "action": "PATCH",
+      "healed": true,
+      "timestamp": "2026-06-25T08:27:46.030347+00:00"
     }
   ]
 }
