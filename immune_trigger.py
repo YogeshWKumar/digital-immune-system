@@ -595,7 +595,7 @@ with Sandbox.create() as sandbox:
 
     result = sandbox.commands.run(
         "cd /home/user && python immune_system.py",
-        timeout=300,
+        timeout=600,
         envs={
             "OPENAI_API_KEY": OPENAI_KEY,
             "GH_TOKEN":       GH_TOKEN,
