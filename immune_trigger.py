@@ -645,19 +645,23 @@ with Sandbox.create() as sandbox:
                     message
                 )
                 notify_slack(
-                    f"Digital Immune System\n"
-                    f"Repo: {REPO}\n"
-                    f"Commit: {COMMIT_SHA[:7]}\n"
-                    f"Action: {outcome['action']}\n"
-                    f"Recovered: {'Yes' if outcome['recovered'] else 'No'}"
+                    f":white_check_mark: *Digital Immune System — Auto-Healed*\n"
+                    f">*Repo:* `{REPO}`\n"
+                    f">*Commit:* `{COMMIT_SHA[:7]}`\n"
+                    f">*Action:* `{outcome['action']}`\n"
+                    f">*Recovered:* {'Yes ✅' if outcome['recovered'] else 'No ❌'}\n"
+                    f">*Fix commit:* `{message}`"
                 )
         except Exception as e:
             print(f"Could not push fix: {e}")
 
     elif outcome["action"] == "ESCALATE":
         notify_slack(
-            f"Digital Immune System - ESCALATION\n"
-            f"Repo: {REPO}\n"
-            f"Commit: {COMMIT_SHA[:7]}\n"
-            f"Could not auto-heal. On-call required."
+            f":rotating_light: *Digital Immune System — ESCALATION*\n"
+            f">*Repo:* `{REPO}`\n"
+            f">*Commit:* `{COMMIT_SHA[:7]}`\n"
+            f">*Failure count:* `{memory.get('failure_count', '?')}`\n"
+            f">*Reason:* Auto-healing failed after 3 attempts\n"
+            f">*Action required:* Manual intervention needed\n"
+            f">*CI run:* https://github.com/{REPO}/actions"
         )
