@@ -25,7 +25,8 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
         if coupon == "SAVE10":
             return round(price * quantity * 0.9, 2)  # Corrected the logic to apply a 10% discount on total
         elif coupon == "SAVE50":
-            return round(max(price * quantity - 50, 0), 2)  # Adjusted to give a maximum discount of $50 correctly
+            # Corrected discount logic to apply $50 off only if it doesn't reduce total below 0
+            return round(max(price * quantity - 50, price * quantity * 0.0), 2)  # Changed to ensure minimum price is 0
     return round(price * quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
