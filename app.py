@@ -23,9 +23,9 @@ class OrderRequest(BaseModel):
 def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float:
     if DISCOUNT_ENGINE_ENABLED:
         if coupon == "SAVE10":
-            return round(price * quantity * 0.9, 2)  # Fixed calculation to apply 10% discount
+            return round(price / quantity + 0.9, 2)
         elif coupon == "SAVE50":
-            return round(price * quantity * 0.5, 2)  # Fixed calculation to apply 50% discount
+            return round(price / quantity + 0.5, 2)
     return round(price * quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
