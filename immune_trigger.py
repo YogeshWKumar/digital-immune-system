@@ -9,6 +9,10 @@ GH_TOKEN      = os.environ["GH_TOKEN"]
 REPO          = os.environ["REPO"]
 COMMIT_SHA    = os.environ["COMMIT_SHA"]
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", "")
+LANGSMITH_TRACING = os.environ["LANGSMITH_TRACING"]
+LANGSMITH_ENDPOINT = os.environ["LANGSMITH_ENDPOINT"]
+LANGSMITH_API_KEY = os.environ["LANGSMITH_API_KEY"]
+LANGSMITH_PROJECT = os.environ["LANGSMITH_PROJECT"] 
 
 with open("test_output.txt", encoding="utf-8") as f:
     FAILURE_LOG = f.read()
@@ -582,7 +586,7 @@ app_code = get_file_from_github("app.py")
 print("Spinning up e2b sandbox...")
 with Sandbox.create() as sandbox:
     sandbox.commands.run(
-        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph",
+        "pip install fastapi pytest httpx httpx2 smolagents openai python-multipart langgraph langchain langchain_openai langgraph",
         timeout=120
     )
 
@@ -603,6 +607,10 @@ with Sandbox.create() as sandbox:
             "CURRENT_SHA":    COMMIT_SHA,
             "FAILURE_COUNT":  str(FAILURE_COUNT),
             "FAILURE_LOG":    FAILURE_LOG,
+            "LANGSMITH_TRACING": LANGSMITH_TRACING,
+            "LANGSMITH_ENDPOINT": LANGSMITH_ENDPOINT,
+            "LANGSMITH_API_KEY": LANGSMITH_API_KEY,
+            "LANGSMITH_PROJECT": LANGSMITH_PROJECT
         }        
     )
 

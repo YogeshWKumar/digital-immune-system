@@ -45,6 +45,10 @@ jobs:
           REPO:              ${{ github.repository }}
           COMMIT_SHA:        ${{ github.sha }}
           BRANCH:            ${{ github.ref_name }}
+          LANGSMITH_TRACING:   ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_ENDPOINT:  ${{ secrets.LANGSMITH_ENDPOINT }}
+          LANGSMITH_API_KEY:   ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT:   ${{ secrets.LANGSMITH_PROJECT }}
         run: |
           pip install e2b-code-interpreter requests smolagents openai
           python immune_trigger.py
