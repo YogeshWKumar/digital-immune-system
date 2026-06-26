@@ -126,7 +126,6 @@ from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
 from smolagents import ToolCallingAgent, CodeAgent, OpenAIServerModel, tool
 from fastapi.testclient import TestClient
-from langsmith import traceable
 
 # ── Load app ──────────────────────────────────────────────────────────────────
 spec = importlib.util.spec_from_file_location("app", "/home/user/app.py")
@@ -224,7 +223,6 @@ def run_tests(test_code: str) -> dict:
     }
 
 
-@traceable    
 @tool
 def patch_app(reason: str) -> str:
     """
