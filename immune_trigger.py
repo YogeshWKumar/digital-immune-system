@@ -223,6 +223,7 @@ def run_tests(test_code: str) -> dict:
     }
 
 
+@traceable    
 @tool
 def patch_app(reason: str) -> str:
     """
