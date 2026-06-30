@@ -205,7 +205,7 @@ git add immune_memory.json && git commit -m "set failure_count=3" && git push
 Introduce a bug in discount logic for SAVE10 coupon in app.py
   for example change (price * quantity * 0.9, 2) to (price + quantity / 0.9, 2)
 ```bash
-git add app.py && git commit -m "test: trigger rollback" && git push
+git add app.py && git commit -m "test: trigger escalate" && git push
 ```
 Reset memory after testing
 Reset `failure_count` to 0 in immune_memory.json after testing
