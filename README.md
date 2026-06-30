@@ -10,7 +10,7 @@ ROLLBACK	`failure_count >= 1`	Restores last verified stable commit
 ESCALATE	`failure_count >= 3`	Pages on-call engineer via Slack
 Every healing cycle is fully observable through LangSmith, which captures node-level traces for the entire pipeline — showing input state, output state, and latency for each of the seven nodes.
 ---
-Demo
+Workflow
 ```
 Developer pushes buggy code
          ↓
