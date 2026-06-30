@@ -25,7 +25,8 @@ def calculate_price(price: float, quantity: int, coupon: Optional[str]) -> float
         if coupon == "SAVE10":
             return round(price * quantity * 0.9, 2)  # Changed to apply 10% discount correctly
         elif coupon == "SAVE50":
-            return round(price * quantity - 50, 2) if price * quantity > 50 else price * quantity  # Changed to apply 50 discount correctly
+            total_price = price * quantity  # Store total price for comparison
+            return round(total_price - 50, 2) if total_price > 50 else round(total_price, 2)  # Changed to ensure 50 discount is applied correctly
     return round(price * quantity, 2)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
