@@ -431,7 +431,7 @@ def testgen_node(state: ImmuneState) -> ImmuneState:
         "IMPORTANT: Use TestClient from fastapi.testclient\\n"
         "IMPORTANT: Assert ONLY specific response fields — do NOT assert the full response dict.\\n"
         "IMPORTANT: Use ONLY the expected values from the CI failure log assertions — not the actual values.\\n"
-        "Infer the endpoints, HTTP methods, and request payloads from the CI failure log.\\n"
+        "Infer the endpoints, HTTP methods, and request payloads from the Application source code.\\n"
         "Call save_test_to_file when done."
     )
     testgen_agent.run(prompt)
